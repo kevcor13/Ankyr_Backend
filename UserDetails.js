@@ -1,24 +1,103 @@
 import mongoose from "mongoose";
 
+
+const NotificationSchema = new mongoose.Schema({
+    type: {
+        type: String,
+        enum: ['like','follow','accept'],
+    },
+    from: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
+    username: {type: String, required: true},
+    message: String,
+    imageUrl: String,
+    userProfileImageUrl: {type: String},
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    read: {
+        type: Boolean,
+        default: false,
+    },
+}, {
+    collection: "Notifications", // Use a specific collection name (optional)
+});
+
+export const Notification = mongoose.model("Notification", NotificationSchema);
+
+
 // User Schema and Model
-const UserDetailSchema = new mongoose.Schema({
+const UserDetailSchema= new mongoose.Schema({
+    name: {type: String, required: true},
     username: String,
     email: { type: String, unique: true },
     password: String,
     questionnaire: { type: Boolean, default: false },
     profileImage: String,
+    // Each follower/following entry now includes a 'request' status
     followers: [
-        { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" }
+        {
+            user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
+            request: { type: Boolean, default: null },
+        }
     ],
     following: [
-        { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" }
+        {
+            user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
+            request: { type: Boolean, default: null },
+        }
     ]
 }, {
     collection: "UserInfo",
 });
-
 export const User = mongoose.model("UserInfo", UserDetailSchema);
 
+const UserSettingsSchema = new mongoose.Schema({
+    UserID: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'UserInfo',
+        required: true,
+    },
+    notifications: {
+        type: Boolean,
+    },
+    quotes: {
+        type: Boolean,
+    },
+    challenges: {
+        type: Boolean,
+    },
+    follows: {
+        type: Boolean,
+    },
+    interactions: {
+        type: Boolean,
+    },
+    snaps: {
+        type: Boolean,
+    },
+}, {
+    collection: "Settings",
+})
+export const Settings = mongoose.model("Settings", UserSettingsSchema);
+
+const CodesSchema = new mongoose.Schema({
+    codes: [
+        {
+            type: Number,
+        }
+    ]
+}, {
+    collection: "Codes",
+})
+export const Codes = mongoose.model("Codes", CodesSchema)
 // Game System Schema and Model
 const GameSystemSchema = new mongoose.Schema({
     UserID: {
@@ -35,6 +114,7 @@ const GameSystemSchema = new mongoose.Schema({
 }, {
     collection: "GameSystem",
 });
+
 
 export const GameSystem = mongoose.model("GameSystem", GameSystemSchema);
 
@@ -69,8 +149,8 @@ const WorkoutRoutineSchema = new mongoose.Schema({
         collection: "WorkoutRoutines", // Specifies the collection name in MongoDB
     }
 );
-
 export const WorkoutRoutine = mongoose.model("WorkoutRoutine", WorkoutRoutineSchema);
+
 
 const WorkoutRSchema = new mongoose.Schema({
     UserID: {
@@ -101,7 +181,6 @@ default: Date.now,
 {
     collection: "WorkoutRoutines", // Optional: specifies the collection name in MongoDB
 });
-
 export const WorkoutSchema = mongoose.model("WorkoutSchema", WorkoutRSchema);
 
 
@@ -153,6 +232,7 @@ const photoSchema = new mongoose.Schema({
 
 export const Photo = mongoose.model("Photo", photoSchema);
 
+
 const PostSchema = new mongoose.Schema({
     UserId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -162,8 +242,16 @@ const PostSchema = new mongoose.Schema({
     username: String,
     content: String,
     imageUrl: String,
+    userProfileImageUrl: String,
     createdAt: { type: Date, default: Date.now },
+        likes: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            }
+        ]
 },
     {collection: 'Post'
 });
 export const Post = mongoose.model("Post", PostSchema);
+

@@ -4,8 +4,9 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import OpenAI from "openai";
 import bodyParser from "body-parser";
+import multer from 'multer';
 import cors from "cors";
-import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post} from "./UserDetails.js"; // Import models
+import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
 
 
 const app = express();
@@ -13,7 +14,7 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-const openai = new OpenAI({apiKey: "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"});
+const openai = new OpenAI({apiKey: "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"});
 
 const mongoUrl = "mongodb+srv://ankyrservices:ankyr.services@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
@@ -27,9 +28,73 @@ mongoose
         console.log(e);
     })
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/profile-images/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + '.jpg';
+        cb(null, uniqueName);
+    }
+});
+
+const upload = multer({ storage });
+
 app.get("/", (req, res) => {
     res.send({status:"started"})
 })
+
+app.post('/checkCodeMatch', async (req, res) => {
+    try {
+        const { documentId, code } = req.body;
+        console.log('Checking code:', documentId, code);
+
+        if (!documentId || code === undefined) {
+            return res
+                .status(400)
+                .json({ status: 'error', message: 'Missing documentId or code' });
+        }
+
+        // Coerce to number
+        const numCode = Number(code);
+        if (Number.isNaN(numCode)) {
+            return res
+                .status(400)
+                .json({ status: 'error', message: 'Code must be numeric' });
+        }
+        console.log("this is numCode " + numCode);
+
+        // Find the document, selecting only the `codes` array
+        const doc = await Codes.findById(documentId)
+            .select('Codes')
+            .lean();
+
+        console.log(doc)
+        if (!doc) {
+            return res
+                .status(404)
+                .json({ status: 'error', message: 'Document not found' });
+        }
+
+        // Make sure doc.codes is an array
+        const arr = Array.isArray(doc.Codes) ? doc.Codes : [];
+        console.log(arr)
+        // Check for membership
+        const exists = arr.includes(numCode);
+
+        return res.json({
+            status: 'success',
+            found: exists
+        });
+
+    } catch (error) {
+        console.error('Error checking code match:', error);
+        return res
+            .status(500)
+            .json({ status: 'error', message: error.message });
+    }
+});
+
 
 
 app.post("/save-workout", async (req, res) => {
@@ -105,9 +170,31 @@ app.post("/fitnessInfo", async(req,res)=>{
     }
 })
 
+app.post("/userSettings", async (req, res) => {
+    const {UserID} = req.body;
+    console.log(UserID);
+    const user = await User.findById(UserID)
+    if (!user) {
+        return res.send({ status: "error", data: "User not found" });
+    }
+    try {
+        await Settings.create({
+            UserID,
+            notifications: true,
+            quotes: true,
+            challenges: true,
+            follows: true,
+            interactions: true,
+            snaps: true,
+        })
+        res.send({status: "success", data:"settings created"})
+    } catch (error){
+        res.send({status:"error", data: error})
+    }
+})
 //Register the account
 app.post('/register', async(req,res) =>{
-    const {username,email, password, profile} =req.body;
+    const {username,email, password, profile, name} =req.body;
     console.log(username,email,password, profile);
     const oldUser = await User.findOne({email: email});
     if(oldUser){
@@ -116,6 +203,7 @@ app.post('/register', async(req,res) =>{
     const encryptedPassword = await bcrypt.hash(password, 12);
     try {
         await User.create({
+            name,
             username,
             email: email,
             password: encryptedPassword,
@@ -128,18 +216,18 @@ app.post('/register', async(req,res) =>{
     }
 })
 
+
 //upload image into DB
 app.post('/upload', async (req, res) => {
     const { image, UserID } = req.body;
-    
+
     if (!image) {
         return res.status(400).json({ status: "error", data: "No image provided" });
     }
-    
+
     if (!UserID) {
         return res.status(400).json({ status: "error", data: "No UserID provided" });
     }
-
     try {
         // Verify the user exists
         const user = await User.findById(UserID);
@@ -149,15 +237,15 @@ app.post('/upload', async (req, res) => {
 
         // Create a unique URL for the image
         const url = `data:image/jpeg;base64,${image}`;
-        
-        const savedPhoto = await Photo.create({ 
+
+        const savedPhoto = await Photo.create({
             UserID: UserID,
             image: image,
             url: url
         });
-        
-        res.status(200).json({ 
-            status: "success", 
+
+        res.status(200).json({
+            status: "success",
             data: {
                 url: savedPhoto.url
             }
@@ -351,7 +439,7 @@ app.post("/aI", async (req, res) => {
 
 //create a post
 app.post("/createPost", async (req, res) => {
-    const { UserId, username, content, imageUrl } = req.body;
+    const { UserId, username, content, imageUrl, userProfileImageUrl} = req.body;
     console.log(UserId, username, content, imageUrl);
     try {
         const newPost = new Post({
@@ -359,9 +447,7 @@ app.post("/createPost", async (req, res) => {
             username,
             content,
             imageUrl,
-            // Make sure your Post model has `likes` and `createdAt` fields:
-            // likes: { type: Number, default: 0 },
-            // createdAt: { type: Date, default: Date.now },
+            userProfileImageUrl
         });
         await newPost.save();
         res.status(201).json(newPost);
@@ -375,11 +461,17 @@ app.post('/follow', async (req, res) => {
     const { userId, targetId } = req.body; // userId = current user, targetId = user to follow
 
     try {
-        // Add targetId to current user's following array
-        await User.findByIdAndUpdate(userId, { $addToSet: { following: targetId }});
-        // Add current user's id to target user's followers array
-        await User.findByIdAndUpdate(targetId, { $addToSet: { followers: userId }});
-        res.json({ status: "success", data: "Followed successfully" });
+        // Add follow request to current user's following array
+        await User.findByIdAndUpdate(userId, {
+            $addToSet: { following: { user: targetId} }
+        });
+
+        // Add follow request to target user's followers array
+        await User.findByIdAndUpdate(targetId, {
+            $addToSet: { followers: { user: userId} }
+        });
+
+        res.json({ status: "success", data: "Follow request sent", request: null });
     } catch (error) {
         res.status(500).json({ status: "error", data: error.message });
     }
@@ -398,6 +490,40 @@ app.post('/unfollow', async (req, res) => {
     }
 });
 
+//following response
+app.post('/response', async (req, res) => {
+    const { userId, targetId, accept } = req.body;
+    // userId = the private-profile owner (approver)
+    // targetId = the one who sent the follow request
+
+    try {
+        // Update the "request" flag in the *following* array of the target user (they follow you)
+        // and in the *followers* array of the approver.
+        await Promise.all([
+            User.updateOne(
+                { _id: targetId },
+                { $set: { "following.$[f].request": accept } },
+                { arrayFilters: [{ "f.user": userId }] }
+            ),
+            User.updateOne(
+                { _id: userId },
+                { $set: { "followers.$[f].request": accept } },
+                { arrayFilters: [{ "f.user": targetId }] }
+            )
+        ]);
+
+        return res.json({
+            status: "success",
+            data: accept ? "Follow accepted" : "Follow rejected",
+            request: accept
+        });
+    } catch (error) {
+        console.error("Response error:", error);
+        return res.status(500).json({ status: "error", data: error.message });
+    }
+});
+
+
 // Search for users
 app.post("/searchUsers", async (req, res) => {
     const { token, query } = req.body;
@@ -411,7 +537,6 @@ app.post("/searchUsers", async (req, res) => {
             return res.status(401).json({ status: "error", data: "Unauthorized" });
         }
 
-        // Search for users by username (case insensitive)
         const searchResults = await User.find({
             username: { $regex: query, $options: 'i' }
         }).select('username profileImage followers');
@@ -450,6 +575,258 @@ app.post("/getUserById", async (req, res) => {
     }
 });
 
-app.listen(5001, () =>{
+app.post('/getFollowers', async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        // 1. Find the user and only grab the `following` array,
+        //    while populating each entry's `user` ref:
+        const user = await User
+            .findById(userId)
+            .select('followers')
+            .populate('followers.user', 'username email profileImage');
+
+        if (!user) {
+            return res.json({ status: 'error', message: 'User not found' });
+        }
+        console.log(user)
+
+        // 2. Map each "following" entry down to the fields you care about:
+        const followerList = user.followers.map(f => ({
+            userId:        f.user._id,
+            username:      f.user.username,
+            email:         f.user.email,
+            profileImage:  f.user.profileImage,
+            requestStatus: f.request      // true / false / null
+        }));
+
+        // 3. Return that structured array
+        return res.json({
+            status: 'success',
+            data: followerList
+        });
+
+    } catch (error) {
+        console.error('Error fetching following users:', error);
+        return res.json({
+            status: 'error',
+            message: 'Failed to fetch following users',
+            error: error.message
+        });
+    }
+});
+
+
+//get the following list
+app.post('/getFollowing', async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        // 1. Find the user and only grab the `following` array,
+        //    while populating each entry's `user` ref:
+        const user = await User
+            .findById(userId)
+            .select('following')
+            .populate('following.user', 'username email profileImage');
+
+        if (!user) {
+            return res.json({ status: 'error', message: 'User not found' });
+        }
+        console.log(user)
+
+        // 2. Map each "following" entry down to the fields you care about:
+        const followingList = user.following.map(f => ({
+            userId:        f.user._id,
+            username:      f.user.username,
+            email:         f.user.email,
+            profileImage:  f.user.profileImage,
+            requestStatus: f.request      // true / false / null
+        }));
+
+        // 3. Return that structured array
+        return res.json({
+            status: 'success',
+            data: followingList
+        });
+
+    } catch (error) {
+        console.error('Error fetching following users:', error);
+        return res.json({
+            status: 'error',
+            message: 'Failed to fetch following users',
+            error: error.message
+        });
+    }
+});
+
+//like the post
+app.post('/like', async (req, res) => {
+    const { postId, postOwner, likedUser } = req.body;
+    try {
+        // add to post.likes
+        await Post.findByIdAndUpdate(postId, {
+            $addToSet: { likes: likedUser }
+        });
+        // push notification into post-owner’s notifications
+        await User.findByIdAndUpdate(postOwner, {
+            $push: {
+                notifications: {
+                    type: 'like',
+                    from: likedUser,
+                    post: postId,
+                    message: 'Someone liked your post'
+                }
+            }
+        });
+        res.json({ status: 'success' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
+app.post('/updateProfileImage', async (req, res) => {
+    const { userId, profileImage } = req.body;
+
+    try {
+        if (!userId || !profileImage) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'User ID and profile image are required'
+            });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { profileImage: profileImage },
+        );
+        if (!updatedUser) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'User not found'
+            });
+        }
+        res.json({
+            status: 'success',
+            data: {
+                profileImage: profileImage
+            }
+        });
+    } catch (error) {
+        console.error('Error updating profile image:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to update profile image'
+        });
+    }
+})
+
+// Unlike a post
+app.post('/unlike', async (req, res) => {
+    const { postId, likedUser } = req.body;
+    try {
+        await Post.findByIdAndUpdate(postId, {
+            $pull: { likes: likedUser }
+        });
+        res.json({ status: 'success' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
+//check if the user has liked the images.
+app.post('/hasLiked', async (req, res) => {
+    const {postId, likedUser} = req.body;
+
+    try {
+        // Check if there's a post with this ID that already has userId in its likes array
+        const exists = await Post.exists({ _id: postId, likes: likedUser });
+        return res.json({ status: 'success', liked: Boolean(exists) });
+    } catch (err) {
+        console.error('Error checking like status:', err);
+        return res.status(500).json({ status: 'error', message: err.message });
+    }
+})
+
+//function to create all the post notifications
+app.post('/createNotification', async (req, res) => {
+    const { type, from, owner, imageUrl, userProfileImageUrl,username,message} = req.body;
+    console.log(username);
+
+    try {
+        const notification = new Notification({
+            type,     // 'like' or 'follow'
+            from,     // ObjectId of the user who triggered it
+            owner,     // (optional) ObjectId of the post involved
+            imageUrl,
+            userProfileImageUrl,
+            username,
+            message,
+            // createdAt & read default automatically
+        });
+
+        await notification.save();
+
+        // 4) Return the saved doc
+        return res.json({ status: 'success', data: notification });
+    } catch (err) {
+        console.error('Error creating notification:', err);
+        return res
+            .status(500)
+            .json({ status: 'error', message: err.message });
+    }
+});
+
+//delete notifications
+app.post('/deleteNotification', async (req, res) => {
+    const { notificationId } = req.body;
+    console.log(notificationId);
+    if (!notificationId) {
+        return res
+            .status(400)
+            .json({ status: 'error', message: 'notificationId is required' });
+    }
+
+    try {
+        const deleted = await Notification.findByIdAndDelete(notificationId);
+
+        if (!deleted) {
+            return res
+                .status(404)
+                .json({ status: 'error', message: 'Notification not found' });
+        }
+
+        return res.json({ status: 'success', message: 'Notification deleted' });
+    } catch (err) {
+        console.error('Error deleting notification:', err);
+        return res
+            .status(500)
+            .json({ status: 'error', message: err.message });
+    }
+});
+
+//get all the notifications.
+app.post('/getNotifications', async (req, res) => {
+    const { userId } = req.body;
+    try {
+        const notifications = await Notification
+            .find({ owner: userId })                  // ← or { to: userId } if you add a recipient field
+            .sort({ createdAt: -1 })
+            .then(data=>{
+                return res.send({status:"success", data:data})
+        })
+    } catch (err) {
+        console.error('Error fetching notifications:', err);
+        return res
+            .status(500)
+            .json({ status: 'error', message: err.message });
+    }
+});
+
+
+
+app.listen(5002, () =>{
     console.log("node js server started");
 })
+
