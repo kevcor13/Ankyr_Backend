@@ -14,9 +14,9 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-//const openai = new OpenAI({apiKey: "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"});
+const openai = new OpenAI({apiKey: "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"});
 
-const mongoUrl = "mongodb+srv://ankyrservices:ankyr.services@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
+const mongoUrl = "mongodb+srv://ankyrservices:helloworld@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
 const JET_SECRET = "abcdefg123456"
 mongoose
@@ -437,6 +437,7 @@ app.post("/aI", async (req, res) => {
     }
 });
 
+
 //create a post
 app.post("/createPost", async (req, res) => {
     const { UserId, username, content, imageUrl, userProfileImageUrl} = req.body;
@@ -829,4 +830,3 @@ app.post('/getNotifications', async (req, res) => {
 app.listen(5002, () =>{
     console.log("node js server started");
 })
-
