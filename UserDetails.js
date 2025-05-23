@@ -128,6 +128,8 @@ const WorkoutRoutineSchema = new mongoose.Schema({
         routine: [
             {
                 day: { type: String, required: true }, // Day of the week (e.g., Monday, Tuesday, etc.)
+                workGroup: { type: String, required: true }, // Muscle group targeted (e.g., Chest, Back, etc.)
+                timeStamp: { type: Number, required: true}, // Timestamp for the workout routine
                 warmup: [
                     { type: String, required: true }, // Array of warm-up exercises
                 ],
@@ -136,8 +138,12 @@ const WorkoutRoutineSchema = new mongoose.Schema({
                         exercise: { type: String, required: true }, // Exercise name
                         sets: { type: Number, required: true }, // Number of sets
                         reps: { type: String, required: true }, // Repetitions or time duration
+                        weight: { type: Number, required: true }, // Weight used for the exercise
+                        XP: {type: Number, required: true}, // Experience points for the exercise
+
                     },
                 ],
+                totalXP: {type: Number, required: true}, // Total experience points for the workout
             },
         ],
         createdAt: {
