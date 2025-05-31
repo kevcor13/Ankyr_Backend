@@ -111,6 +111,9 @@ const GameSystemSchema = new mongoose.Schema({
     points: {
         type: Number,
     },
+    league: {
+        type: String, 
+    }
 }, {
     collection: "GameSystem",
 });
@@ -128,8 +131,6 @@ const WorkoutRoutineSchema = new mongoose.Schema({
         routine: [
             {
                 day: { type: String, required: true }, // Day of the week (e.g., Monday, Tuesday, etc.)
-                workGroup: { type: String, required: true }, // Muscle group targeted (e.g., Chest, Back, etc.)
-                timeStamp: { type: Number, required: true}, // Timestamp for the workout routine
                 warmup: [
                     { type: String, required: true }, // Array of warm-up exercises
                 ],
@@ -138,12 +139,8 @@ const WorkoutRoutineSchema = new mongoose.Schema({
                         exercise: { type: String, required: true }, // Exercise name
                         sets: { type: Number, required: true }, // Number of sets
                         reps: { type: String, required: true }, // Repetitions or time duration
-                        weight: { type: Number, required: true }, // Weight used for the exercise
-                        XP: {type: Number, required: true}, // Experience points for the exercise
-
                     },
                 ],
-                totalXP: {type: Number, required: true}, // Total experience points for the workout
             },
         ],
         createdAt: {
@@ -191,7 +188,7 @@ export const WorkoutSchema = mongoose.model("WorkoutSchema", WorkoutRSchema);
 
 
 // Fitness Info (Questionnaire) Schema and Model
-const QuestionnaireSchema = new mongoose.Schema({
+const fitnessInfo = new mongoose.Schema({
     UserID: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "UserInfo",
@@ -199,27 +196,33 @@ const QuestionnaireSchema = new mongoose.Schema({
     },
     gender: {
         type: String,
+        require:true
     },
     age: {
         type: Number,
+        require:true
     },
     weight: {
         type: Number,
+        require:true
     },
     fitnessLevel: {
         type: String,
+        require:true
     },
     workoutDays: {
         type: Number,
+        require:true
     },
     fitnessGoal: {
         type: String,
+        require:true
     },
 }, {
     collection: "FitnessInfo", // Corrected "collections" to "collection"
 });
 
-export const FitnessInfo = mongoose.model("FitnessInfo", QuestionnaireSchema);
+export const FitnessInfo = mongoose.model("FitnessInfo", fitnessInfo);
 
 const photoSchema = new mongoose.Schema({
     UserID: {
