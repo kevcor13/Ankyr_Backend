@@ -14,9 +14,9 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-const openai = new OpenAI({apiKey: "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"});
+//const openai = new OpenAI({apiKey: "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"});
 
-const mongoUrl = "mongodb+srv://ankyrservices:helloworld@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
+const mongoUrl = "mongodb+srv://ankyrservices:ankyrservice@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
 const JET_SECRET = "abcdefg123456"
 mongoose
@@ -131,7 +131,8 @@ app.post ("/workoutInfo", async (req, res) => {
 
 // create the game system
 app.post("/gameSystem", async (req, res) => {
-    const {UserID, streak, points} = req.body;
+    const {UserID, streak, points, league} = req.body;
+    console.log(UserID, streak, points, league);
     const user = await User.findById(UserID);
     if(!user){
         return res.send({status:"error", data: "User not found"})
@@ -141,6 +142,7 @@ app.post("/gameSystem", async (req, res) => {
             UserID: UserID,
             streak: streak,
             points: points,
+            league: league,
         })
         res.send({status:"success", data:"user created"})
     } catch (error){
@@ -150,19 +152,22 @@ app.post("/gameSystem", async (req, res) => {
 
 //create the fitness file
 app.post("/fitnessInfo", async(req,res)=>{
-    const {UserID, gender, weight, fitness, workoutDays, goal} = req.body;
+    const {UserID, gender, age, weight, fitnessLevel, workoutDays, fitnessGoal} = req.body;
     const user = await User.findById(UserID)
     if (!user) {
         return res.send({ status: "error", data: "User not found" });
     }
     try{
+        console.log(gender, weight, fitnessLevel, workoutDays, fitnessGoal);
+        
         await FitnessInfo.create({
             UserID: UserID,
             gender: gender,
+            age: age,
             weight: weight,
-            fitnessLevel: fitness,
+            fitnessLevel: fitnessLevel,
             workoutDays: workoutDays,
-            fitnessGoal: goal,
+            fitnessGoal: fitnessGoal,
         })
         res.send({status:"success", data:"user created"})
     } catch (error){
@@ -437,7 +442,6 @@ app.post("/aI", async (req, res) => {
     }
 });
 
-
 //create a post
 app.post("/createPost", async (req, res) => {
     const { UserId, username, content, imageUrl, userProfileImageUrl} = req.body;
@@ -590,7 +594,6 @@ app.post('/getFollowers', async (req, res) => {
         if (!user) {
             return res.json({ status: 'error', message: 'User not found' });
         }
-        console.log(user)
 
         // 2. Map each "following" entry down to the fields you care about:
         const followerList = user.followers.map(f => ({
@@ -633,7 +636,6 @@ app.post('/getFollowing', async (req, res) => {
         if (!user) {
             return res.json({ status: 'error', message: 'User not found' });
         }
-        console.log(user)
 
         // 2. Map each "following" entry down to the fields you care about:
         const followingList = user.following.map(f => ({
@@ -830,3 +832,4 @@ app.post('/getNotifications', async (req, res) => {
 app.listen(5002, () =>{
     console.log("node js server started");
 })
+
