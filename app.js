@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import OpenAI from "openai";
 import bodyParser from "body-parser";
+import { GoogleGenAI } from "@google/genai";
 import multer from 'multer';
 import cors from "cors";
 import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
@@ -366,6 +367,23 @@ app.post("/workout", async(req,res) =>{
         res.send({status:"error", data: error})
     }
 })
+
+
+app.post("/geminiTest", async (req, res) => {
+    const { message } = req.body;
+    try {
+        const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: message,
+    });
+        console.log(response.text);
+    } catch (error) {
+        console.error("gemini test has failed", error);
+        res.status(500).json({ error: error.message });
+    }
+  })
+
+
 
 // Function to generate and save a workout plan
 app.post("/aI", async (req, res) => {
