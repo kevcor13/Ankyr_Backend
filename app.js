@@ -2,9 +2,9 @@ import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import OpenAI from "openai";
+// import OpenAI from "openai"; // No longer needed for Gemini API
 import bodyParser from "body-parser";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
 import multer from 'multer';
 import cors from "cors";
 import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
@@ -15,7 +15,13 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-//const openai = new OpenAI({apiKey: "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"});
+// --- Gemini API Setup ---
+// Ensure you have your API key stored securely, e.g., in an environment variable
+// For demonstration, I'm using the hardcoded key from your app.js, but
+// process.env.GEMINI_API_KEY is recommended for production.
+const GEMINI_API_KEY = "AIzaSyCCVbjN2M-ARn1GTfbKyFVb4_2JucgwOXg"; // Replace with process.env.GEMINI_API_KEY in production
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// --- End Gemini API Setup ---
 
 const mongoUrl = "mongodb+srv://ankyrservices:ankyrservice@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
@@ -175,7 +181,7 @@ app.post("/fitnessInfo", async(req,res)=>{
         res.send({status:"error", data: error})
     }
 })
-
+//create user settings 
 app.post("/userSettings", async (req, res) => {
     const {UserID} = req.body;
     console.log(UserID);
@@ -198,6 +204,7 @@ app.post("/userSettings", async (req, res) => {
         res.send({status:"error", data: error})
     }
 })
+
 //Register the account
 app.post('/register', async(req,res) =>{
     const {username,email, password, profile, name} =req.body;
@@ -368,84 +375,88 @@ app.post("/workout", async(req,res) =>{
     }
 })
 
-
-app.post("/geminiTest", async (req, res) => {
-    const { message } = req.body;
-    try {
-        const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: message,
-    });
-        console.log(response.text);
-    } catch (error) {
-        console.error("gemini test has failed", error);
-        res.status(500).json({ error: error.message });
-    }
-  })
-
-
-
-// Function to generate and save a workout plan
+// This is your new Gemini AI endpoint
 app.post("/aI", async (req, res) => {
-    const { UserID, message } = req.body; // Ensure UserID is passed in the request body
+    const { UserID, Gmessage } = req.body; // Ensure UserID is passed in the request body
 
     try {
         console.log("Generating weekly workouts for UserID:", UserID);
+        console.log("Received message length:", Gmessage ? Gmessage.length : 'undefined/null');
+        console.log("Received message content (first 500 chars):", Gmessage ? Gmessage.substring(0, 500) : 'N/A');
 
-        // Send request to ChatGPT
-        const chatGPTResponse = await openai.chat.completions.create({
-            model: "gpt-4o-2024-08-06",
-            messages: [
-                { role: "system", content: "You are a helpful fitness trainer. Provide a structured workout plan for a full week." },
-                { role: "user", content: message }
-            ],
-            store: true,
-            response_format: {
-                type: "json_schema",
-                json_schema: {
-                    name: "weekly_workout_response",
-                    schema: {
-                        type: "object",
-                        properties: {
-                            routine: {
-                                type: "array",
-                                items: {
-                                    type: "object",
-                                    properties: {
-                                        day: { type: "string" }, // Day of the week
-                                        warmup: {
-                                            type: "array",
-                                            items: { type: "string" }
-                                        },
-                                        workoutRoutine: {
-                                            type: "array",
-                                            items: {
-                                                type: "object",
-                                                properties: {
-                                                    exercise: { type: "string" },
-                                                    sets: { type: "number" },
-                                                    reps: { type: "string" }
-                                                },
-                                                required: ["exercise", "sets", "reps"],
-                                                additionalProperties: false
-                                            }
-                                        }
-                                    },
-                                    required: ["day", "warmup", "workoutRoutine"],
-                                    additionalProperties: false
-                                }
-                            }
-                        },
-                        required: ["routine"],
-                        additionalProperties: false
-                    },
-                    strict: true
+        if (!Gmessage) {
+            console.error("Error: 'message' is missing from request body.");
+            return res.status(400).json({ error: "Workout generation message is missing." });
+        }
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // Or "gemini-1.5-pro-latest" for more powerful model
+        
+        // Safety settings to control the type of content generated
+        const safetySettings = [
+            {
+                category: HarmCategory.HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+                category: HarmCategory.HATE_SPEECH,
+                threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+                category: HarmCategory.SEXUALLY_EXPLICIT,
+                threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+                category: HarmCategory.DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+        ];
+
+        // System instructions (equivalent to system role in ChatGPT)
+        const systemInstruction = "You are a helpful fitness trainer. Provide a structured workout plan for a full week. The response must be in pure JSON format, matching the specified schema.";
+
+        // Construct the prompt for Gemini, including the schema directly.
+        // This is crucial for guiding Gemini to produce the correct JSON structure.
+        const fullPrompt = `${systemInstruction}\n\n${Gmessage}\n\n
+        FORMAT:
+        Return the full structured data in pure JSON format, no extra commentary. The JSON should adhere to the following schema:
+        {
+            "routine": [
+                {
+                    "day": "string", // Day of the week (e.g., "Monday")
+                    "focus": "string", // Area of focus (e.g., "Upper Body", "Lower Body", "Cardio")
+                    "timeEstimate": "number", // Estimated workout duration in minutes (e.g., 45)
+                    "warmup": ["string"], // Array of warm-up exercise names
+                    "workoutRoutine": [
+                        {
+                            "exercise": "string",
+                            "sets": "number",
+                            "reps": "string", // Can be a number or range (e.g., "8-10")
+                            "difficulty": "string" // Optional: "easy", "moderate", or "hard"
+                        }
+                    ],
+                    "cooldown": "string" // Brief cooldown recommendation (text)
                 }
-            }
+            ]
+        }
+        DO NOT include rest days. Ensure the JSON is valid and contains only the specified properties.`;
+
+        console.log("Full prompt length sent to Gemini:", fullPrompt.length);
+        // console.log("Full prompt sent to Gemini:", fullPrompt); // Uncomment for full prompt debugging
+
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+            generationConfig: {
+                responseMimeType: "application/json", // Instruct Gemini to return JSON
+            },
         });
 
+        const geminiResponse = result.response;
+        const responseText = geminiResponse.text();
+
+        console.log("Gemini Raw Response Text:", responseText);
+
         // Parse and validate the response content
-        const workoutPlan = JSON.parse(chatGPTResponse.choices[0].message.content);
+        const workoutPlan = JSON.parse(responseText);
         console.log("Generated weekly workout plan:", workoutPlan);
 
         // Save to database
@@ -454,11 +465,16 @@ app.post("/aI", async (req, res) => {
 
         // Respond with success
         res.json({ message: "Weekly workout plan generated and saved successfully!", workout: savedWorkout });
+
     } catch (error) {
         console.error("Error generating or saving weekly workout plan:", error);
-        res.status(500).json({ error: error.message });
+        if (error.response && error.response.candidates && error.response.candidates.length > 0) {
+            console.error("Gemini response candidates (for debugging):", error.response.candidates);
+        }
+        res.status(500).json({ error: error.message || "An unknown error occurred during workout generation." });
     }
 });
+
 
 //create a post
 app.post("/createPost", async (req, res) => {
@@ -850,4 +866,3 @@ app.post('/getNotifications', async (req, res) => {
 app.listen(5002, () =>{
     console.log("node js server started");
 })
-
