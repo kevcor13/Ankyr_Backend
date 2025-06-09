@@ -7,7 +7,9 @@ import bodyParser from "body-parser";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
 import multer from 'multer';
 import cors from "cors";
+import crypto from 'crypto'; // Node.js built-in module for hashing
 import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
+import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./WorkoutSchemas.js";
 
 
 const app = express();
@@ -45,11 +47,71 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage });
+function generateCacheKeyHash(message) {
+    const normalizedMessage = message.trim().toLowerCase();
+    return crypto.createHash('sha256').update(normalizedMessage).digest('hex');
+}
+
 
 app.get("/", (req, res) => {
     res.send({status:"started"})
 })
+//test 
+
+app.post("/test/add-exercise", async (req, res) => {
+    try {
+        const { name, description, videoUrl, category, equipment, difficulty, recommendedSets, recommendedReps, isWarmupExercise, isCooldownExercise, tags } = req.body;
+
+        // Basic validation (you'd want more robust validation in a real app)
+        if (!name || !description || !videoUrl || !category || !equipment || !difficulty) {
+            return res.status(400).json({ status: "error", message: "Missing required fields." });
+        }
+
+        const newExerciseData = {
+            name,
+            description,
+            videoUrl,
+            category,
+            equipment,
+            difficulty,
+            recommendedSets: recommendedSets || null, // Allow optional fields
+            recommendedReps: recommendedReps || null,
+            isWarmupExercise: isWarmupExercise || false,
+            isCooldownExercise: isCooldownExercise || false,
+            tags: tags || []
+        };
+
+        // Check if an exercise with this name already exists
+        const existingExercise = await ExerciseLibrary.findOne({ name: newExerciseData.name });
+
+        if (existingExercise) {
+            // Option 1: Update the existing exercise
+            await ExerciseLibrary.updateOne({ name: newExerciseData.name }, newExerciseData);
+            console.log(`Updated existing exercise: ${newExerciseData.name}`);
+            return res.status(200).json({
+                status: "success",
+                message: `Exercise "${newExerciseData.name}" updated successfully.`,
+                exercise: newExerciseData
+            });
+            // Option 2: Return an error if you don't want to allow updates via this endpoint
+            // return res.status(409).json({ status: "error", message: `Exercise "${name}" already exists.` });
+        } else {
+            // Create a new exercise entry
+            const createdExercise = await ExerciseLibrary.create(newExerciseData);
+            console.log(`Added new exercise: ${createdExercise.name} (ID: ${createdExercise._id})`);
+            return res.status(201).json({
+                status: "success",
+                message: `Exercise "${createdExercise.name}" added successfully.`,
+                exercise: createdExercise
+            });
+        }
+
+    } catch (error) {
+        console.error("Error adding exercise:", error);
+        res.status(500).json({ status: "error", message: "Failed to add exercise.", error: error.message });
+    }
+});
+
 
 app.post('/checkCodeMatch', async (req, res) => {
     try {
@@ -359,122 +421,329 @@ app.post("/gamedata", async(req,res) =>{
 })
 
 //get the workout DATA
-app.post("/workout", async(req,res) =>{
-    const {token, UserID} = req.body;
-    const user = jwt.verify(token, JET_SECRET);
-    const userEmail = user.email;
-    if(!userEmail){
-        return res.send({status:"error", data: "User not found"})
+app.post("/workout", async (req, res) => {
+    const { token, UserID } = req.body;
+
+    if (!token) {
+        return res.status(401).json({ status: "error", data: "Authentication token is missing." });
     }
-    try{
-        WorkoutRoutine.findOne({UserID: UserID}).then(data=>{
-            return res.send({status:"success", data:data})
-        })
-    }catch (error){
-        res.send({status:"error", data: error})
+
+    let user;
+    try {
+        user = jwt.verify(token, JET_SECRET); // Verify the JWT to get the UserID
+    } catch (error) {
+        console.error("JWT verification failed:", error);
+        return res.status(403).json({ status: "error", data: "Invalid or expired token." });
     }
-})
+
+    const userIDFromToken = user.id; // Assuming 'id' is where UserID is stored in your JWT payload
+    let userObjectId;
+    try {
+        userObjectId = new mongoose.Types.ObjectId(UserID);
+    } catch (error) {
+        console.error("Invalid UserID format from token:", userIDFromToken, error);
+        return res.status(400).json({ status: "error", data: "Invalid User ID format." });
+    }
+
+    try {
+        console.log("Fetching user routine for UserID:", userObjectId);
+
+        // Find the user's routine in UserRoutine collection and populate its references
+        const userRoutine = await UserRoutine.findOne({ UserID: userObjectId })
+            .populate([
+                { path: 'routine.warmupRef', model: 'IndividualWorkout' },       // Populate warmup segments
+                { path: 'routine.workoutRoutineRef', model: 'IndividualWorkout' }, // Populate main workout segments
+                // { path: 'routine.cooldownRef', model: 'IndividualWorkout' } // If cooldowns are cached separately
+            ])
+            .lean(); // Use .lean() for faster reads and easier manipulation
+
+        if (!userRoutine) {
+            console.log("No workout routine found for UserID:", userObjectId);
+            return res.status(404).json({ status: "error", data: "No workout routine found for this user." });
+        }
+
+        // Reconstruct the routine to send to the client
+        // The 'content' of the populated IndividualWorkout now directly includes 'videoUrl'
+        const populatedRoutineForClient = userRoutine.routine.map(day => {
+            return {
+                day: day.day,
+                focus: day.focus,
+                timeEstimate: day.timeEstimate,
+                // If warmupRef exists, use its content; otherwise, an empty array
+                warmup: day.warmupRef ? day.warmupRef.content : [],
+                // If workoutRoutineRef exists, use its content; otherwise, an empty array
+                workoutRoutine: day.workoutRoutineRef ? day.workoutRoutineRef.content : [],
+                cooldown: day.cooldownText, // Cooldown text is directly stored
+            };
+        });
+
+        console.log("Successfully fetched and populated user routine with video URLs for UserID:", userObjectId);
+        // Send the full routine, but replace the references array with the fully populated one
+        return res.json({
+            status: "success",
+            data: {
+                ...userRoutine, // Send other userRoutine properties (generatedAt, expiresAt, etc.)
+                routine: populatedRoutineForClient // Send the transformed routine with full exercise details
+            }
+        });
+
+    } catch (error) {
+        console.error("Error fetching user routine:", error);
+        res.status(500).json({ status: "error", data: "An error occurred while fetching the workout routine." });
+    }
+});
 
 // This is your new Gemini AI endpoint
 app.post("/aI", async (req, res) => {
-    const { UserID, Gmessage } = req.body; // Ensure UserID is passed in the request body
+    const { UserID, Gmessage } = req.body;
 
     try {
-        console.log("Generating weekly workouts for UserID:", UserID);
-        console.log("Received message length:", Gmessage ? Gmessage.length : 'undefined/null');
-        console.log("Received message content (first 500 chars):", Gmessage ? Gmessage.substring(0, 500) : 'N/A');
-
-        if (!Gmessage) {
-            console.error("Error: 'message' is missing from request body.");
-            return res.status(400).json({ error: "Workout generation message is missing." });
+        if (!UserID || !Gmessage) {
+            console.error("Error: UserID or Gmessage is missing from request body.");
+            return res.status(400).json({ error: "UserID and workout generation message are required." });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // Or "gemini-1.5-pro-latest" for more powerful model
-        
-        // Safety settings to control the type of content generated
+        const userObjectId = new mongoose.Types.ObjectId(UserID);
+        const currentTime = new Date();
+
+        // --- 1. Parse Gmessage to filter relevant exercises from your ExerciseLibrary ---
+        // This is a simplified example. In a production app, you'd use more sophisticated
+        // NLP or keyword extraction to determine user preferences (equipment, difficulty, focus).
+        let exerciseQuery = {};
+        const lowerGmessage = Gmessage.toLowerCase();
+
+        if (lowerGmessage.includes("dumbbells")) {
+            exerciseQuery.equipment = "Dumbbells";
+        }
+        if (lowerGmessage.includes("bodyweight") || lowerGmessage.includes("no equipment")) {
+             exerciseQuery.equipment = "Bodyweight";
+        }
+        if (lowerGmessage.includes("beginner")) {
+            exerciseQuery.difficulty = "Beginner";
+        } else if (lowerGmessage.includes("intermediate")) {
+            exerciseQuery.difficulty = "Intermediate";
+        } else if (lowerGmessage.includes("advanced")) {
+            exerciseQuery.difficulty = "Advanced";
+        }
+        // Add more parsing logic for other fields like 'category' or 'time'
+        // Example: if (lowerGmessage.includes("chest") || lowerGmessage.includes("upper body")) { exerciseQuery.category = "Chest"; }
+
+        // Fetch relevant exercises from your ExerciseLibrary.
+        // Limiting to 200 exercises to keep the AI prompt size manageable.
+        // .lean() converts Mongoose documents to plain JavaScript objects for performance.
+        const availableExercises = await ExerciseLibrary.find(exerciseQuery).limit(200).lean();
+
+        if (availableExercises.length === 0) {
+            console.warn("No exercises found matching criteria for Gmessage:", Gmessage);
+            return res.status(400).json({ error: "Could not find any suitable exercises from the library based on your request. Please try a different message or add more exercises to the library." });
+        }
+
+        // --- 2. Format available exercises for the AI prompt (only data AI needs) ---
+        // Do NOT include videoUrl here; AI doesn't need it and it saves tokens.
+        const exercisesForAI = availableExercises.map(ex => ({
+            name: ex.name,
+            category: ex.category,
+            equipment: ex.equipment,
+            difficulty: ex.difficulty,
+            recommendedSets: ex.recommendedSets,
+            recommendedReps: ex.recommendedReps,
+            // description: ex.description // Can include description if AI needs more context, but watch token limits
+        }));
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
         const safetySettings = [
-            {
-                category: HarmCategory.HARASSMENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.HATE_SPEECH,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.SEXUALLY_EXPLICIT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-                category: HarmCategory.DANGEROUS_CONTENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
+            { category: HarmCategory.HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE, },
+            { category: HarmCategory.HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE, },
+            { category: HarmCategory.SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE, },
+            { category: HarmCategory.DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE, },
         ];
 
-        // System instructions (equivalent to system role in ChatGPT)
-        const systemInstruction = "You are a helpful fitness trainer. Provide a structured workout plan for a full week. The response must be in pure JSON format, matching the specified schema.";
+        // --- 3. Construct the AI Prompt with the Exercise List and specific instructions ---
+        const systemInstruction = `You are a helpful and expert fitness trainer. Your task is to generate a structured weekly workout plan tailored to the user's request.
+        You MUST ONLY use exercises from the provided JSON list of "Available Exercises".
+        For each exercise you include in the workout routine, you MUST use its exact 'name' as it appears in the "Available Exercises" list.
+        Adapt sets and reps based on the user's request, the exercise's recommended values, and general fitness principles.
+        DO NOT include rest days in the routine.
+        The response MUST be in pure JSON format, matching the specified schema.
+        Ensure 'warmup' and 'workoutRoutine' arrays are present, even if empty.`;
 
-        // Construct the prompt for Gemini, including the schema directly.
-        // This is crucial for guiding Gemini to produce the correct JSON structure.
-        const fullPrompt = `${systemInstruction}\n\n${Gmessage}\n\n
+        const fullPrompt = `${systemInstruction}\n\n
+        Available Exercises (use ONLY these, reference by 'name'):\n${JSON.stringify(exercisesForAI)}\n\n
+        User Request: ${Gmessage}\n\n
         FORMAT:
         Return the full structured data in pure JSON format, no extra commentary. The JSON should adhere to the following schema:
         {
             "routine": [
                 {
-                    "day": "string", // Day of the week (e.g., "Monday")
-                    "focus": "string", // Area of focus (e.g., "Upper Body", "Lower Body", "Cardio")
-                    "timeEstimate": "number", // Estimated workout duration in minutes (e.g., 45)
-                    "warmup": ["string"], // Array of warm-up exercise names
+                    "day": "string",
+                    "focus": "string",
+                    "timeEstimate": "number",
+                    "warmup": [
+                        {
+                            "exerciseName": "string", // This MUST be an exact 'name' from the provided list
+                            "sets": "number",
+                            "reps": "string"
+                        }
+                    ],
                     "workoutRoutine": [
                         {
-                            "exercise": "string",
+                            "exerciseName": "string", // This MUST be an exact 'name' from the provided list
                             "sets": "number",
-                            "reps": "string", // Can be a number or range (e.g., "8-10")
-                            "difficulty": "string" // Optional: "easy", "moderate", or "hard"
+                            "reps": "string",
+                            "difficulty": "string" // e.g., "easy", "moderate", or "hard" for this specific execution
                         }
                     ],
                     "cooldown": "string" // Brief cooldown recommendation (text)
                 }
             ]
-        }
-        DO NOT include rest days. Ensure the JSON is valid and contains only the specified properties.`;
-
-        console.log("Full prompt length sent to Gemini:", fullPrompt.length);
-        // console.log("Full prompt sent to Gemini:", fullPrompt); // Uncomment for full prompt debugging
+        }`;
 
         const result = await model.generateContent({
             contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
             generationConfig: {
-                responseMimeType: "application/json", // Instruct Gemini to return JSON
+                responseMimeType: "application/json",
             },
+            //safetySettings: safetySettings,
         });
 
         const geminiResponse = result.response;
         const responseText = geminiResponse.text();
 
-        console.log("Gemini Raw Response Text:", responseText);
+        let generatedRoutine;
+        try {
+            const parsedResponse = JSON.parse(responseText);
+            if (!parsedResponse || !Array.isArray(parsedResponse.routine)) {
+                throw new Error("AI response did not match expected 'routine' array structure.");
+            }
+            generatedRoutine = parsedResponse.routine;
+        } catch (parseError) {
+            console.error("Failed to parse Gemini response as JSON or invalid structure:", parseError);
+            console.error("Raw Gemini Response Text (for debugging):", responseText);
+            return res.status(500).json({ error: "AI generated an unparseable or invalid workout plan. Please try again." });
+        }
 
-        // Parse and validate the response content
-        const workoutPlan = JSON.parse(responseText);
-        console.log("Generated weekly workout plan:", workoutPlan);
+        console.log("Gemini successfully generated routine structure for", generatedRoutine.length, "days.");
 
-        // Save to database
-        const savedWorkout = await WorkoutRoutine.create({ UserID, routine: workoutPlan.routine });
-        console.log("Weekly workout plan saved to database:", savedWorkout);
+        const userRoutineToSave = [];
+        const cacheExpirationDate = new Date();
+        cacheExpirationDate.setDate(currentTime.getDate() + 30); // Individual workout segments cached for a month
 
-        // Respond with success
-        res.json({ message: "Weekly workout plan generated and saved successfully!", workout: savedWorkout });
+        // --- 4. Process each day's routine, validate exercises, add video URLs, and cache segments ---
+        for (const day of generatedRoutine) {
+            const dayRoutine = {
+                day: day.day,
+                focus: day.focus,
+                timeEstimate: day.timeEstimate,
+                warmupRef: null,
+                workoutRoutineRef: null,
+                cooldownRef: null, // If cooldowns also become cached segments
+                cooldownText: day.cooldown || "" // Simple text cooldown
+            };
+
+            // Helper function to process either warmup or main_workout segments
+            const processWorkoutSegment = async (segment, type) => {
+                if (!segment || !Array.isArray(segment) || segment.length === 0) return null;
+
+                const exercisesWithDetails = [];
+                for (const item of segment) {
+                    // Find the exercise in the full availableExercises list (which has videoUrl and other details)
+                    const exerciseFromLibrary = availableExercises.find(ex => ex.name === item.exerciseName);
+
+                    if (!exerciseFromLibrary) {
+                        console.warn(`AI suggested unknown or unavailable exercise: "${item.exerciseName}". Skipping this exercise from the segment.`);
+                        continue; // Skip this specific exercise if not found in our library
+                    }
+
+                    exercisesWithDetails.push({
+                        exercise: exerciseFromLibrary.name, // Use the official name from library
+                        sets: item.sets,
+                        reps: item.reps,
+                        difficulty: item.difficulty || exerciseFromLibrary.difficulty, // AI can override, else use library default
+                        videoUrl: exerciseFromLibrary.videoUrl, // <--- CRUCIAL: Get the video URL here!
+                    });
+                }
+
+                if (exercisesWithDetails.length === 0) return null; // If all suggested exercises for this segment were invalid/skipped
+
+                // Generate hash for the segment's content (now including videoUrl in content for hashing)
+                const contentHash = IndividualWorkout.generateContentHash(exercisesWithDetails, type);
+                let cachedSegment = await IndividualWorkout.findOne({ contentHash: contentHash });
+
+                if (!cachedSegment) {
+                    console.log(`Caching new ${type} segment: ${contentHash.substring(0, 10)}...`);
+                    cachedSegment = await IndividualWorkout.create({
+                        contentHash: contentHash,
+                        type: type,
+                        content: exercisesWithDetails, // Save exercises with video URLs here!
+                        expiresAt: cacheExpirationDate,
+                    });
+                } else {
+                    console.log(`${type} cache hit: ${contentHash.substring(0, 10)}...`);
+                    // Optionally, update expiresAt for cached segment on hit to keep it fresh
+                    if (cachedSegment.expiresAt < currentTime) {
+                        await IndividualWorkout.updateOne({ _id: cachedSegment._id }, { expiresAt: cacheExpirationDate });
+                        console.log(`Updated expiration for cached ${type} segment.`);
+                    }
+                }
+                return cachedSegment._id;
+            };
+
+            dayRoutine.warmupRef = await processWorkoutSegment(day.warmup, 'warmup');
+            dayRoutine.workoutRoutineRef = await processWorkoutSegment(day.workoutRoutine, 'main_workout');
+            // If you decide to cache cooldowns as IndividualWorkouts, process similarly:
+            // dayRoutine.cooldownRef = await processWorkoutSegment(day.cooldown, 'cooldown');
+
+            userRoutineToSave.push(dayRoutine);
+        }
+
+        // --- 5. Save/Update the user's weekly routine in the UserRoutine collection ---
+        const userRoutineExpirationDate = new Date();
+        userRoutineExpirationDate.setDate(currentTime.getDate() + 7); // User's overall routine document expires in 7 days
+
+        let savedUserRoutine;
+        try {
+            savedUserRoutine = await UserRoutine.findOneAndUpdate(
+                { UserID: userObjectId }, // Find routine for this specific user
+                {
+                    routine: userRoutineToSave,
+                    generatedAt: currentTime,
+                    expiresAt: userRoutineExpirationDate,
+                },
+                {
+                    upsert: true, // Create if not found
+                    new: true,   // Return the updated/new document
+                    setDefaultsOnInsert: true // Apply schema defaults on creation
+                }
+            );
+            console.log("User's weekly routine saved/updated in UserRoutine collection:", savedUserRoutine._id);
+
+            // Populate the references to IndividualWorkout documents before sending to client
+            await savedUserRoutine.populate([
+                { path: 'routine.warmupRef', model: 'IndividualWorkout' },
+                { path: 'routine.workoutRoutineRef', model: 'IndividualWorkout' },
+                // { path: 'routine.cooldownRef', model: 'IndividualWorkout' }
+            ]);
+
+            res.json({
+                message: "Weekly workout plan generated and cached/saved successfully!",
+                workout: savedUserRoutine, // This object now contains fully populated content with video URLs
+                source: "ai_generated_and_cached_segments_with_videos"
+            });
+
+        } catch (dbError) {
+            console.error("Error saving user routine or populating:", dbError);
+            res.status(500).json({ error: "An error occurred while saving the user's routine." });
+        }
 
     } catch (error) {
-        console.error("Error generating or saving weekly workout plan:", error);
+        console.error("Overall error in /aI endpoint:", error);
         if (error.response && error.response.candidates && error.response.candidates.length > 0) {
-            console.error("Gemini response candidates (for debugging):", error.response.candidates);
+            console.error("Gemini API Error Candidates:", error.response.candidates);
         }
         res.status(500).json({ error: error.message || "An unknown error occurred during workout generation." });
     }
 });
-
 
 //create a post
 app.post("/createPost", async (req, res) => {

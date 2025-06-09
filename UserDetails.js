@@ -123,35 +123,60 @@ export const GameSystem = mongoose.model("GameSystem", GameSystemSchema);
 
 // Workout Routine Schema and Model
 const WorkoutRoutineSchema = new mongoose.Schema({
-        UserID: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "UserInfo", // Reference to the UserInfo collection
-            required: true,
-        },
-        routine: [
-            {
-                day: { type: String, required: true }, // Day of the week (e.g., Monday, Tuesday, etc.)
-                warmup: [
-                    { type: String, required: true }, // Array of warm-up exercises
-                ],
-                workoutRoutine: [
-                    {
-                        exercise: { type: String, required: true }, // Exercise name
-                        sets: { type: Number, required: true }, // Number of sets
-                        reps: { type: String, required: true }, // Repetitions or time duration
-                    },
-                ],
-            },
-        ],
-        createdAt: {
-            type: Date,
-            default: Date.now,
-        },
+    // This will now be the unique key for the workout content itself
+    // It's the hash of the Gmessage, allowing workouts to be shared across users.
+    generationParams: {
+        type: String,
+        required: true,
+        unique: true, // This makes the workout content unique, not tied to a single user initially
     },
-    {
-        collection: "WorkoutRoutines", // Specifies the collection name in MongoDB
-    }
-);
+    // Array to store all UserIDs that have been assigned this specific cached workout.
+    // When a cache hit occurs, we'll add the new UserID to this array if not already present.
+    UserID: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "UserInfo",
+        required: true,
+    }],
+    routine: [
+        {
+            day: { type: String, required: true },
+            focus: {type: String, require: true},
+            timeEstimate: {type: Number, require: true},
+            warmup: [
+                {
+                    exercise: { type: String, required: true },
+                    sets: { type: Number, required: true },
+                    reps: { type: String, required: true },
+                },
+            ],
+            workoutRoutine: [
+                {
+                    exercise: { type: String, required: true },
+                    sets: { type: Number, required: true },
+                    reps: { type: String, required: true },
+                    difficulty: {type: String}
+                },
+            ],
+            cooldown: { type: String, required: true },
+        },
+    ],
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    expiresAt: {
+        type: Date,
+        required: true,
+    },
+},
+{
+    collection: "WorkoutRoutines",
+    // The unique index is now ONLY on generationParams, as that defines the unique workout content.
+    // No compound index with UserID anymore for the *cache itself*.
+    indexes: [{ unique: true, fields: { generationParams: 1 } }]
+});
+
+// Ensure you export the model correctly
 export const WorkoutRoutine = mongoose.model("WorkoutRoutine", WorkoutRoutineSchema);
 
 
