@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"; 
 // import OpenAI from "openai"; // No longer needed for Gemini API
 import bodyParser from "body-parser";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
@@ -10,6 +10,7 @@ import cors from "cors";
 import crypto from 'crypto'; // Node.js built-in module for hashing
 import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
 import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./WorkoutSchemas.js";
+import { log } from "console";
 
 
 const app = express();
@@ -103,6 +104,7 @@ app.post("/test/add-exercise", async (req, res) => {
                 status: "success",
                 message: `Exercise "${createdExercise.name}" added successfully.`,
                 exercise: createdExercise
+                
             });
         }
 
@@ -408,6 +410,8 @@ app.post("/gamedata", async(req,res) =>{
     const {token, UserID} = req.body;
     const user = jwt.verify(token, JET_SECRET);
     const userEmail = user.email;
+    console.log("UserID: ", UserID);
+    
     if(!userEmail){
         return res.send({status:"error", data: "User not found"})
     }
