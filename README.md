@@ -1,6 +1,6 @@
-# 🧠 FitSphere Backend
+# 🧠 Fitness App Backend
 
-This is the **backend API** for the [FitSphere Expo App](https://github.com/your-username/fitsphere-app), a fitness platform that leverages AI to generate personalized workout routines and includes social media functionality.
+This is the **backend API** for the [Fitness Expo App]([https://github.com/your-username/fitsphere-app](https://github.com/your-username/fitsphere-app)), a fitness platform that leverages AI to generate personalized workout routines and includes social media functionality.
 
 ---
 
