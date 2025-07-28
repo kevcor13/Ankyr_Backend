@@ -1,6 +1,6 @@
 # 🧠 Fitness App Backend
 
-This is the **backend API** for the [Fitness Expo App](https://github.com/your-username/fitsphere-app), a fitness platform that leverages AI to generate personalized workout routines and includes social media functionality.
+This is the **backend API** for the [Fitness Expo App](https://github.com/kevcor13/AnkyrApp.git), a fitness platform that leverages AI to generate personalized workout routines and includes social media functionality.
 
 ---
 
@@ -30,13 +30,13 @@ This is the **backend API** for the [Fitness Expo App](https://github.com/your-u
 ## 🧑‍💻 Frontend Repository
 
 ➡️ The Expo React Native app that connects with this backend is here:  
-👉 [FitSphere Expo App]([https://github.com/your-username/fitsphere-app](https://github.com/your-username/fitsphere-app))
+👉 [FitSphere Expo App](https://github.com/kevcor13/AnkyrApp.git)
 
 ---
 
 ## 📦 Installation
 
 ```bash
-git clone https://github.com/your-username/fitsphere-backend.git
+git clone https://github.com/kevcor13/AnkyrApp.git
 cd fitsphere-backend
 npm install
