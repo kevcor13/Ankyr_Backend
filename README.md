@@ -30,7 +30,7 @@ This is the **backend API** for the [Fitness Expo App](https://github.com/kevcor
 ## 🧑‍💻 Frontend Repository
 
 ➡️ The Expo React Native app that connects with this backend is here:  
-👉 [FitSphere Expo App](https://github.com/kevcor13/AnkyrApp.git)
+👉 [Fitness App](https://github.com/kevcor13/AnkyrApp.git)
 
 ---
 
