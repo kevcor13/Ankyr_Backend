@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken"; 
+import jwt from "jsonwebtoken";
 // import OpenAI from "openai"; // No longer needed for Gemini API
 import bodyParser from "body-parser";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
@@ -10,7 +10,6 @@ import cors from "cors";
 import crypto from 'crypto'; // Node.js built-in module for hashing
 import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
 import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./WorkoutSchemas.js";
-import { log } from "console";
 
 
 const app = express();
@@ -18,15 +17,9 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- Gemini API Setup ---
-// Ensure you have your API key stored securely, e.g., in an environment variable
-// For demonstration, I'm using the hardcoded key from your app.js, but
-// process.env.GEMINI_API_KEY is recommended for production.
-const GEMINI_API_KEY = "AIzaSyCCVbjN2M-ARn1GTfbKyFVb4_2JucgwOXg"; // Replace with process.env.GEMINI_API_KEY in production
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// --- End Gemini API Setup ---
+//const openai = new OpenAI({apiKey: "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"});
 
-const mongoUrl = "mongodb+srv://ankyrservices:ankyrservice@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
+const mongoUrl = "mongodb+srv://ankyrservices:ankyr.services@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
 const JET_SECRET = "abcdefg123456"
 mongoose
@@ -104,7 +97,6 @@ app.post("/test/add-exercise", async (req, res) => {
                 status: "success",
                 message: `Exercise "${createdExercise.name}" added successfully.`,
                 exercise: createdExercise
-                
             });
         }
 
@@ -410,8 +402,6 @@ app.post("/gamedata", async(req,res) =>{
     const {token, UserID} = req.body;
     const user = jwt.verify(token, JET_SECRET);
     const userEmail = user.email;
-    console.log("UserID: ", UserID);
-    
     if(!userEmail){
         return res.send({status:"error", data: "User not found"})
     }
@@ -748,6 +738,7 @@ app.post("/aI", async (req, res) => {
         res.status(500).json({ error: error.message || "An unknown error occurred during workout generation." });
     }
 });
+
 
 //create a post
 app.post("/createPost", async (req, res) => {
@@ -1139,3 +1130,4 @@ app.post('/getNotifications', async (req, res) => {
 app.listen(5002, () =>{
     console.log("node js server started");
 })
+
