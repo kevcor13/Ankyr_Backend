@@ -5,11 +5,15 @@ import jwt from "jsonwebtoken";
 // import OpenAI from "openai"; // No longer needed for Gemini API
 import bodyParser from "body-parser";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
-import multer from 'multer';
 import cors from "cors";
-import crypto from 'crypto'; // Node.js built-in module for hashing
-import { User, FitnessInfo, GameSystem, WorkoutRoutine, WorkoutSchema, Photo, Post, Notification, Settings, Codes} from "./UserDetails.js"; // Import models
-import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./WorkoutSchemas.js";
+import { FitnessInfo, GameSystem, User, Codes} from "./models/userInfo.models.js";
+import {Post, Notification, Photo} from "./models/post.models.js";
+//import {Settings} from "./UserDetails.js"; // Import models
+import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./models/workout.model.js";
+
+import authRoutes from "./routes/auth.routes.js";
+import userData from "./routes/userInfo.routes.js";
+import ai from "./routes/ai.routes.js";
 
 
 const app = express();
@@ -19,7 +23,7 @@ app.use(bodyParser.json());
 
 //const openai = new OpenAI({apiKey: "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"});
 
-const mongoUrl = "mongodb+srv://ankyrservices:ankyr.services@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
+const mongoUrl = "mongodb+srv://ankyrservices:ankyr@ankyr.3zroc.mongodb.net/?retryWrites=true&w=majority&appName=ANKYR"
 
 const JET_SECRET = "abcdefg123456"
 mongoose
@@ -31,20 +35,6 @@ mongoose
         console.log(e);
     })
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/profile-images/');
-    },
-    filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + '.jpg';
-        cb(null, uniqueName);
-    }
-});
-
-function generateCacheKeyHash(message) {
-    const normalizedMessage = message.trim().toLowerCase();
-    return crypto.createHash('sha256').update(normalizedMessage).digest('hex');
-}
 
 
 app.get("/", (req, res) => {
@@ -54,8 +44,8 @@ app.get("/", (req, res) => {
 
 app.post("/test/add-exercise", async (req, res) => {
     try {
-        const { name, description, videoUrl, category, equipment, difficulty, recommendedSets, recommendedReps, isWarmupExercise, isCooldownExercise, tags } = req.body;
-
+        const { name, description, videoUrl, category, equipment, difficulty, recommendedSets, recommendedReps, isWarmupExercise, isCooldownExercise, tags, isMainWorkoutExercise} = req.body;
+        console.log("Adding exercise:", name, description, videoUrl, category, equipment, difficulty, recommendedSets, recommendedReps, isWarmupExercise, isCooldownExercise, tags, isMainWorkoutExercise);
         // Basic validation (you'd want more robust validation in a real app)
         if (!name || !description || !videoUrl || !category || !equipment || !difficulty) {
             return res.status(400).json({ status: "error", message: "Missing required fields." });
@@ -68,10 +58,11 @@ app.post("/test/add-exercise", async (req, res) => {
             category,
             equipment,
             difficulty,
-            recommendedSets: recommendedSets || null, // Allow optional fields
+            recommendedSets: recommendedSets || null,
             recommendedReps: recommendedReps || null,
             isWarmupExercise: isWarmupExercise || false,
             isCooldownExercise: isCooldownExercise || false,
+            isMainWorkoutExercise,
             tags: tags || []
         };
 
@@ -106,59 +97,9 @@ app.post("/test/add-exercise", async (req, res) => {
     }
 });
 
-
-app.post('/checkCodeMatch', async (req, res) => {
-    try {
-        const { documentId, code } = req.body;
-        console.log('Checking code:', documentId, code);
-
-        if (!documentId || code === undefined) {
-            return res
-                .status(400)
-                .json({ status: 'error', message: 'Missing documentId or code' });
-        }
-
-        // Coerce to number
-        const numCode = Number(code);
-        if (Number.isNaN(numCode)) {
-            return res
-                .status(400)
-                .json({ status: 'error', message: 'Code must be numeric' });
-        }
-        console.log("this is numCode " + numCode);
-
-        // Find the document, selecting only the `codes` array
-        const doc = await Codes.findById(documentId)
-            .select('Codes')
-            .lean();
-
-        console.log(doc)
-        if (!doc) {
-            return res
-                .status(404)
-                .json({ status: 'error', message: 'Document not found' });
-        }
-
-        // Make sure doc.codes is an array
-        const arr = Array.isArray(doc.Codes) ? doc.Codes : [];
-        console.log(arr)
-        // Check for membership
-        const exists = arr.includes(numCode);
-
-        return res.json({
-            status: 'success',
-            found: exists
-        });
-
-    } catch (error) {
-        console.error('Error checking code match:', error);
-        return res
-            .status(500)
-            .json({ status: 'error', message: error.message });
-    }
-});
-
-
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userData);
+app.use('/api/GenAI', ai);
 
 app.post("/save-workout", async (req, res) => {
     const {rawResponse} = req.body;
@@ -173,7 +114,7 @@ app.post("/save-workout", async (req, res) => {
     }
 });
 
-//create the workout
+//DONE
 app.post ("/workoutInfo", async (req, res) => {
     const{UserID, routine} = req.body;
 
@@ -192,7 +133,7 @@ app.post ("/workoutInfo", async (req, res) => {
     }
 })
 
-// create the game system
+//DONE
 app.post("/gameSystem", async (req, res) => {
     const {UserID, streak, points, league} = req.body;
     console.log(UserID, streak, points, league);
@@ -213,7 +154,7 @@ app.post("/gameSystem", async (req, res) => {
     }
 })
 
-//create the fitness file
+//DONE
 app.post("/fitnessInfo", async(req,res)=>{
     const {UserID, gender, age, weight, fitnessLevel, workoutDays, fitnessGoal} = req.body;
     const user = await User.findById(UserID)
@@ -261,7 +202,8 @@ app.post("/userSettings", async (req, res) => {
     }
 })
 
-//Register the account
+
+// DONE
 app.post('/register', async(req,res) =>{
     const {username,email, password, profile, name} =req.body;
     console.log(username,email,password, profile);
@@ -363,7 +305,7 @@ app.post('/getUserPosts', async(req, res) => {
     }
 });
 
-// login user
+// DONE
 app.post("/login", async(req,res) =>{
     const {email, password} = req.body;
     const oldUser = await User.findOne({email: email});
@@ -381,7 +323,7 @@ app.post("/login", async(req,res) =>{
     }
 })
 
-//get the user Data
+//DONE
 app.post("/userdata", async(req,res) =>{
     const {token} = req.body;
     try{
@@ -397,7 +339,7 @@ app.post("/userdata", async(req,res) =>{
     }
 })
 
-//get the user Game Data
+//DONE
 app.post("/gamedata", async(req,res) =>{
     const {token, UserID} = req.body;
     const user = jwt.verify(token, JET_SECRET);
@@ -414,7 +356,7 @@ app.post("/gamedata", async(req,res) =>{
     }
 })
 
-//get the workout DATA
+//DONE
 app.post("/workout", async (req, res) => {
     const { token, UserID } = req.body;
 
@@ -878,6 +820,7 @@ app.post("/getUserById", async (req, res) => {
     }
 });
 
+//DONE
 app.post('/getFollowers', async (req, res) => {
     try {
         const { userId } = req.body;
@@ -918,8 +861,7 @@ app.post('/getFollowers', async (req, res) => {
     }
 });
 
-
-//get the following list
+//DONE
 app.post('/getFollowing', async (req, res) => {
     try {
         const { userId } = req.body;
@@ -986,6 +928,7 @@ app.post('/like', async (req, res) => {
     }
 });
 
+//DONE
 app.post('/updateProfileImage', async (req, res) => {
     const { userId, profileImage } = req.body;
 
@@ -1079,7 +1022,7 @@ app.post('/createNotification', async (req, res) => {
     }
 });
 
-//delete notifications
+//DONE
 app.post('/deleteNotification', async (req, res) => {
     const { notificationId } = req.body;
     console.log(notificationId);
@@ -1107,7 +1050,7 @@ app.post('/deleteNotification', async (req, res) => {
     }
 });
 
-//get all the notifications.
+//DONE
 app.post('/getNotifications', async (req, res) => {
     const { userId } = req.body;
     try {
