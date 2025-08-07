@@ -9,7 +9,7 @@ import cors from "cors";
 import { FitnessInfo, GameSystem, User, Codes} from "./models/userInfo.models.js";
 import {Post, Notification, Photo} from "./models/post.models.js";
 //import {Settings} from "./UserDetails.js"; // Import models
-import { ExerciseLibrary, IndividualWorkout, UserRoutine} from "./models/workout.model.js";
+import { ExerciseLibrary, UserRoutine} from "./models/workout.model.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import userData from "./routes/userInfo.routes.js";
@@ -429,7 +429,7 @@ app.post("/workout", async (req, res) => {
     }
 });
 
-// This is your new Gemini AI endpoint
+// DONE
 app.post("/aI", async (req, res) => {
     const { UserID, Gmessage } = req.body;
 

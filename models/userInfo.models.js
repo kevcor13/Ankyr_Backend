@@ -7,6 +7,8 @@ const UserDetailSchema= new mongoose.Schema({
     password: String,
     questionnaire: { type: Boolean, default: false },
     profileImage: String,
+    askedThemeQuestions: { type: Boolean, default: false },
+    defaultTheme :{type: Boolean, default: true},
     // Each follower/following entry now includes a 'request' status
     followers: [
         {
