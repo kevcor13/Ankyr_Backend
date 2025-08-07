@@ -101,75 +101,53 @@ export const getGameData = async(req,res) =>{
     }
 }
 
-export const getWorkoutData =  async (req, res) => {
+export const getWorkoutData = async (req, res) => {
+    // The 'token' should ideally come from an Authorization header, not the body.
+    // Example: const token = req.headers.authorization?.split(' ')[1];
     const { token, UserID } = req.body;
 
+    console.log("recieved items",token, UserID);
     if (!token) {
-        return res.status(401).json({ status: "error", data: "Authentication token is missing." });
+        return res.status(401).json({ status: "error", message: "Authentication token is missing." });
     }
-
-    let user;
+    // --- 2. Fetch the user's routine ---
     try {
-        user = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        console.error("JWT verification failed:", error);
-        return res.status(403).json({ status: "error", data: "Invalid or expired token." });
-    }
+        const userObjectId = new mongoose.Types.ObjectId(UserID);
 
-    const userIDFromToken = user.id; // Assuming 'id' is where UserID is stored in your JWT payload
-    let userObjectId;
-    try {
-        userObjectId = new mongoose.Types.ObjectId(UserID);
-    } catch (error) {
-        console.error("Invalid UserID format from token:", userIDFromToken, error);
-        return res.status(400).json({ status: "error", data: "Invalid User ID format." });
-    }
+        // Fetch the entire routine for the user.
+        const userRoutine = await UserRoutine.findOne({ UserID: userObjectId }).lean();
 
-    try {
-        console.log("Fetching user routine for UserID:", userObjectId);
-
-        // Find the user's routine in UserRoutine collection and populate its references
-        const userRoutine = await UserRoutine.findOne({ UserID: userObjectId })
-            .populate([
-                { path: 'routine.warmupRef', model: 'IndividualWorkout' },       // Populate warmup segments
-                { path: 'routine.workoutRoutineRef', model: 'IndividualWorkout' }, // Populate main workout segments
-                // { path: 'routine.cooldownRef', model: 'IndividualWorkout' } // If cooldowns are cached separately
-            ])
-            .lean(); // Use .lean() for faster reads and easier manipulation
-
-        if (!userRoutine) {
-            console.log("No workout routine found for UserID:", userObjectId);
-            return res.status(404).json({ status: "error", data: "No workout routine found for this user." });
+        if (!userRoutine || !userRoutine.routine || userRoutine.routine.length === 0) {
+            return res.status(404).json({ status: "error", message: "No workout routine found for this user." });
         }
 
-        // Reconstruct the routine to send to the client
-        // The 'content' of the populated IndividualWorkout now directly includes 'videoUrl'
-        const populatedRoutineForClient = userRoutine.routine.map(day => {
-            return {
-                day: day.day,
-                focus: day.focus,
-                timeEstimate: day.timeEstimate,
-                // If warmupRef exists, use its content; otherwise, an empty array
-                warmup: day.warmupRef ? day.warmupRef.content : [],
-                // If workoutRoutineRef exists, use its content; otherwise, an empty array
-                workoutRoutine: day.workoutRoutineRef ? day.workoutRoutineRef.content : [],
-                cooldown: day.cooldownText, // Cooldown text is directly stored
-            };
-        });
+        // --- 3. Determine the current day and filter the routine ---
 
-        console.log("Successfully fetched and populated user routine with video URLs for UserID:", userObjectId);
-        // Send the full routine, but replace the references array with the fully populated one
+        const todaysDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+        // Find the specific workout scheduled for today, case-insensitively.
+        const todaysWorkout = userRoutine.routine.find(
+            daySchedule => daySchedule.day.toLowerCase() === todaysDayName.toLowerCase()
+        );
+
+        if (!todaysWorkout) {
+            return res.status(404).json({
+                status: "success", // Success in fetching, but no workout today.
+                message: `No workout scheduled for today (${todaysDayName}). Time to rest! 💪`,
+                data: null
+            });
+        }
+
+        // --- 4. Return just the workout for today ---
         return res.json({
             status: "success",
-            data: {
-                ...userRoutine, // Send other userRoutine properties (generatedAt, expiresAt, etc.)
-                routine: populatedRoutineForClient // Send the transformed routine with full exercise details
-            }
+            message: `Found workout for ${todaysDayName}!`,
+            data: todaysWorkout
         });
-
     } catch (error) {
+        // This will catch errors from both mongoose.Types.ObjectId and UserRoutine.findOne
         console.error("Error fetching user routine:", error);
-        res.status(500).json({ status: "error", data: "An error occurred while fetching the workout routine." });
+        res.status(500).json({ status: "error", message: "An error occurred while fetching the workout routine." });
     }
 };
 
