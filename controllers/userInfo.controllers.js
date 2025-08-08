@@ -104,7 +104,7 @@ export const getGameData = async(req,res) =>{
 export const getWorkoutData = async (req, res) => {
     // The 'token' should ideally come from an Authorization header, not the body.
     // Example: const token = req.headers.authorization?.split(' ')[1];
-    const { token, UserID } = req.body;
+    const { token, date, UserID } = req.body;
 
     console.log("recieved items",token, UserID);
     if (!token) {
@@ -123,7 +123,7 @@ export const getWorkoutData = async (req, res) => {
 
         // --- 3. Determine the current day and filter the routine ---
 
-        const todaysDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const todaysDayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
 
         // Find the specific workout scheduled for today, case-insensitively.
         const todaysWorkout = userRoutine.routine.find(
