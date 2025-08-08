@@ -7,8 +7,9 @@ const UserDetailSchema= new mongoose.Schema({
     password: String,
     questionnaire: { type: Boolean, default: false },
     profileImage: String,
-    askedThemeQuestions: { type: Boolean, default: false },
-    defaultTheme :{type: Boolean, default: true},
+    askedThemeQuestion: {type: Boolean, default: false},
+    defaultTheme:{type: Boolean, deafult: true},
+    profileImage: String,
     // Each follower/following entry now includes a 'request' status
     followers: [
         {
@@ -21,7 +22,8 @@ const UserDetailSchema= new mongoose.Schema({
             user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
             request: { type: Boolean, default: null },
         }
-    ]
+    ],
+    lastWorkoutCompletionData: {type: Date, default: null} 
 }, {
     collection: "UserInfo",
 });

@@ -74,3 +74,34 @@ const UserRoutineSchema = new mongoose.Schema({
 });
 
 export const UserRoutine = mongoose.model("UserRoutine", UserRoutineSchema);
+
+const WorkoutLogSchema = new mongoose.Schema({
+    userId:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "UserInfo",
+        required: true,
+        idex:true
+    },
+    workoutName:{type: String, required: true},
+    date:{
+        type: Date,
+        required: true,
+        default: Date.now,
+        index: true
+    },
+    durationSeconds: {type: Number},
+    exercises: [
+        {
+            name:{ type: String, required: true },
+            sets:[
+                {
+                    reps: { type: Number, required: true },
+                    weight: { type: Number, required: true }, // Weight lifted in kg or lbs
+                }
+            ]
+        }
+    ],
+    points: {type: Number}
+}, {timestamps: true, collection: "WorkoutLogs"});
+
+export const WorkoutLog = mongoose.model("WorkoutLog", WorkoutLogSchema);

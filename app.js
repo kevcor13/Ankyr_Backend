@@ -14,6 +14,7 @@ import { ExerciseLibrary, UserRoutine} from "./models/workout.model.js";
 import authRoutes from "./routes/auth.routes.js";
 import userData from "./routes/userInfo.routes.js";
 import ai from "./routes/ai.routes.js";
+import update from "./routes/update.routes.js";
 
 
 const app = express();
@@ -100,6 +101,7 @@ app.post("/test/add-exercise", async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userData);
 app.use('/api/GenAI', ai);
+app.use('/api/update', update);
 
 app.post("/save-workout", async (req, res) => {
     const {rawResponse} = req.body;
