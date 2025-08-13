@@ -1133,7 +1133,7 @@ app.post('/getNotifications', async (req, res) => {
             .status(500)
             .json({ status: 'error', message: err.message });
     }
-});
+})
 
 
 
