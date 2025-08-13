@@ -44,8 +44,39 @@ export const updateTheme = async(req, res)=>{
     }
 };
 
+export const updateBadge = async (req, res) => {
+    const {UserID, league} = req.body;
+    console.log("UserID: ", UserID, "League: ", league);
+    try {
+        if (!UserID) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'User ID'
+            });
+        }
+        const updateGameSystem = await GameSystem.updateOne(
+            {UserID: UserID},
+            {
+                league: league
+            }
+        )
+        console.log("its done");
+        if (!updateGameSystem) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'User not found'
+            });
+        }
+    } catch (error) {
+        console.error('Error updating Game system:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to update game System'
+        });
+    }
+}
 export const updatePointsAndStreak = async (req, res) => {
-    const {UserID, points, streak} = req.body;
+    const {UserID, points, streak, league} = req.body;
     console.log("UserID: ", UserID, "Points: ", points, "Streak: ", streak);
     try {
         if (!UserID) {
@@ -58,7 +89,8 @@ export const updatePointsAndStreak = async (req, res) => {
             {UserID: UserID},
             {
                 streak: streak,
-                points: points
+                points: points,
+                league: league
             }
         )
         if (!updateGameSystem) {

@@ -1,6 +1,7 @@
 import express from 'express';
 import { createFitnessInfo, createGameSystem, createWorkout, 
          deleteNotifications, getFollowers, getFollowing, getGameData, 
+         getLeagueMembers, 
          getNotifications, getUserData, getWorkoutData, updateProfileImage 
         } from '../controllers/userInfo.controllers.js';
 
@@ -17,6 +18,7 @@ router.post('/getFollowing', getFollowing);
 router.post('/updateProfile', updateProfileImage);
 router.post('/getNotifications', getNotifications);
 router.post('/deleteNotifications', deleteNotifications);
+router.post('/getLeagueMembers', getLeagueMembers);
 
 
 

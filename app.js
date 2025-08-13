@@ -10,11 +10,13 @@ import { FitnessInfo, GameSystem, User, Codes} from "./models/userInfo.models.js
 import {Post, Notification, Photo} from "./models/post.models.js";
 //import {Settings} from "./UserDetails.js"; // Import models
 import { ExerciseLibrary, UserRoutine} from "./models/workout.model.js";
+import {Recipe} from "./models/recipe.models.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import userData from "./routes/userInfo.routes.js";
 import ai from "./routes/ai.routes.js";
 import update from "./routes/update.routes.js";
+import recipe from "./routes/recipe.routes.js";
 
 
 const app = express();
@@ -98,11 +100,74 @@ app.post("/test/add-exercise", async (req, res) => {
     }
 });
 
+app.post("/api/add-recipe", async (req, res) => {
+    try {
+        // 1. Destructure all expected fields from the request body
+        const { 
+            title, 
+            imageUrl, 
+            timeMinutes,
+            goals,
+            ingredientsTags,
+            dietary,
+            ingredients,
+            instructions,
+            nutrition 
+        } = req.body;
+
+        console.log("Received request to add recipe:", title);
+
+        // 2. Basic validation to ensure the most critical field is present
+        if (!title) {
+            return res.status(400).json({ 
+                status: "error", 
+                message: "Missing required field: title." 
+            });
+        }
+        
+        // 5. Assemble the data for the new recipe document
+        const newRecipeData = {
+            title,
+            imageUrl,
+            timeMinutes,
+            goals: goals || [],
+            ingredientsTags: ingredientsTags || [],
+            dietary: dietary || [],
+            ingredients: ingredients || [],
+            instructions: instructions || [],
+            nutrition: nutrition || {}, // Default to an empty object if not provided
+            // featured and favoriteCount will use default values from the schema
+        };
+
+        // 6. Create and save the new recipe entry in the database
+        const createdRecipe = await Recipe.create(newRecipeData);
+        
+        console.log(`Successfully added new recipe: ${createdRecipe.title} (ID: ${createdRecipe._id})`);
+        
+        // 7. Send a success response
+        return res.status(201).json({
+            status: "success",
+            message: `Recipe "${createdRecipe.title}" added successfully.`,
+            recipe: createdRecipe
+        });
+
+    } catch (error) {
+        // Catch any other errors during the process
+        console.error("Error in /api/add-recipe:", error);
+        res.status(500).json({ 
+            status: "error", 
+            message: "Failed to add recipe due to a server error.", 
+            error: error.message 
+        });
+    }
+});
+
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userData);
 app.use('/api/GenAI', ai);
 app.use('/api/update', update);
-
+app.use('/api/meals', recipe );
 app.post("/save-workout", async (req, res) => {
     const {rawResponse} = req.body;
     console.log(rawResponse);

@@ -2,35 +2,76 @@ import axios from 'axios';
 import e from 'express';
 
 // --- Configuration ---
-const API_NINJAS_KEY = 'jNEdefI3DIPf4qNLPQS1Sw==ISksUY0TFAgEhQeD'; // <--- IMPORTANT: REPLACE WITH YOUR KEY
-const YOUR_SERVER_URL = 'https://35ee8c7c5af3.ngrok-free.app';
 
-
-
-// This function fetches data from API Ninjas
-async function fetchExercisesFromApiNinjas() {
-    try {
-        console.log("Fetching exercises from API Ninjas...");
-        const response = await axios.get('https://api.api-ninjas.com/v1/exercises', {
-            params: {
-                // You can specify a muscle to get more exercises, as the API returns 10 at a time
-                // e.g., muscle: 'biceps', 'chest', 'abdominals', etc.
-                 muscle: 'middle_back',
-            },
-            headers: {
-                'X-Api-Key': API_NINJAS_KEY,
-            },
-        });
-        console.log(`Successfully fetched ${response.data.length} exercises.`);
-        return response.data;
-    } catch (error) {
-        console.error("Error fetching from API Ninjas:", error.response?.data || error.message);
-        return []; // Return empty array on error
-    }
-}
+const YOUR_SERVER_URL = ' https://d93d5f728b2d.ngrok-free.app';
 
 // This function sends a single exercise to YOUR server to be saved in the database
 // Assume this is your existing function
+
+function slugify(text) {
+  if (!text) return '';
+  return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')           // Replace spaces with -
+      .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+      .replace(/\-\-+/g, '-');        // Replace multiple - with single -
+}
+
+function generateRandomNutrition() {
+  return {
+      calories: Math.floor(Math.random() * (800 - 300 + 1)) + 300, // 300-800
+      protein_g: Math.floor(Math.random() * (50 - 20 + 1)) + 20,    // 20-50
+      carbs_g: Math.floor(Math.random() * (70 - 20 + 1)) + 20,      // 20-70
+      fat_g: Math.floor(Math.random() * (40 - 10 + 1)) + 10,        // 10-40
+      sugar_g: Math.floor(Math.random() * (25 - 5 + 1)) + 5,        // 5-25
+  };
+}
+
+async function addRecipeToYourDb(recipeData) {
+  try {
+      // Format the data to match your RecipeSchema
+      const formattedData = {
+          title: recipeData.title,
+          imageUrl: recipeData.imageUrl,
+          timeMinutes: recipeData.timeMinutes,
+
+          // These tags are already in the correct format in our custom data
+          goals: recipeData.goals,
+          ingredientsTags: recipeData.ingredientsTags,
+          dietary: recipeData.dietary,
+          
+          // The schema requires an array of objects, so we map the strings.
+          ingredients: recipeData.ingredients.map(item => ({ text: item })),
+          instructions: recipeData.instructions.map(step => ({ step: step })),
+          
+          // For this example, we generate random nutrition data.
+          // You could also add a 'nutrition' object directly to your customRecipes data.
+          nutrition: generateRandomNutrition(),
+          
+          // These will use their default values (false and 0) as defined in the schema
+          // featured: false, 
+          // favoriteCount: 0,
+      };
+
+      console.log(`Sending "${formattedData.title}" to your server...`);
+      // IMPORTANT: Make sure this endpoint matches your server's route for adding a recipe.
+      const response = await axios.post(`${YOUR_SERVER_URL}/api/add-recipe`, formattedData);
+      
+      console.log(`Server Response: ${response.data.message}`);
+
+  } catch (error) {
+      // Handle case where a recipe with the same slug already exists (HTTP 409 Conflict)
+      if (error.response && error.response.status === 409) {
+           console.warn(`Skipped: ${recipeData.title} - already exists (duplicate slug).`);
+      } else {
+           console.error(`Error sending "${recipeData.title}" to your server:`, error.response?.data?.message || error.message);
+      }
+  }
+}
+
+
 async function addExerciseToYourDb(exerciseData) {
     try {
         // The API provides an array, so we can use it directly.
@@ -58,7 +99,7 @@ async function addExerciseToYourDb(exerciseData) {
         };
 
         console.log(`Sending "${formattedData.name}" to your server...`);
-        const response = await axios.post(`${YOUR_SERVER_URL}/test/add-exercise`, formattedData);
+        const response = await axios.post(`${YOUR_SERVER_URL}/api/add-recipe`, formattedData);
         
         console.log(`Server Response: ${response.data.message}`);
 
@@ -80,6 +121,7 @@ function capitalize(str) {
 async function main() {
     // 1. Define your exercises in a JSON array here.
     // This is the data you would have received from API Ninjas.
+    {/** 
     const customExercises = [
         {
           "name": "Hamstring Stretch",
@@ -285,8 +327,104 @@ async function main() {
         // Add a small delay to avoid overwhelming your server
         await new Promise(resolve => setTimeout(resolve, 200)); 
     }
+*/}
+const customRecipes = [
+  {
+      "title": "High-Protein Chicken & Quinoa Bowl",
+      "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=2070&auto=format&fit=crop",
+      "timeMinutes": 35,
+      "goals": ["Build Muscle", "Weight Loss"],
+      "ingredientsTags": ["Poultry"],
+      "dietary": ["Gluten-Free"],
+      "ingredients": [
+          "1 cup quinoa, rinsed",
+          "2 cups chicken broth",
+          "2 boneless, skinless chicken breasts, cubed",
+          "1 tbsp olive oil",
+          "1 red bell pepper, chopped",
+          "1 cup black beans, rinsed",
+          "1 cup corn kernels",
+          "1/2 red onion, finely chopped",
+          "1/4 cup cilantro, chopped",
+          "Lime wedges for serving"
+      ],
+      "instructions": [
+          "Cook quinoa in chicken broth according to package directions. Fluff with a fork.",
+          "While quinoa cooks, heat olive oil in a skillet over medium-high heat. Add chicken and cook until browned and cooked through. Season with salt and pepper.",
+          "In a large bowl, combine the cooked quinoa, chicken, bell pepper, black beans, corn, red onion, and cilantro.",
+          "Toss to combine. Serve warm with lime wedges."
+      ]
+  },
+  {
+      "title": "Vegan Lentil Shepherd's Pie",
+      "imageUrl": "https://images.unsplash.com/photo-1607349914247-536754c8a2a7?q=80&w=2070&auto=format&fit=crop",
+      "timeMinutes": 60,
+      "goals": ["Energy"],
+      "ingredientsTags": ["Vegan"],
+      "dietary": ["Vegan", "Vegetarian", "Dairy-Free", "Gluten-Free"],
+      "ingredients": [
+          "1 tbsp olive oil",
+          "1 large onion, chopped",
+          "2 carrots, diced",
+          "2 celery stalks, diced",
+          "1 cup brown or green lentils, rinsed",
+          "4 cups vegetable broth",
+          "1 tsp dried thyme",
+          "2 tbsp tomato paste",
+          "4 large potatoes, peeled and cubed",
+          "1/4 cup unsweetened almond milk",
+          "Salt and pepper to taste"
+      ],
+      "instructions": [
+          "For the filling, heat olive oil in a large pot. Add onion, carrots, and celery and cook until softened, about 5-7 minutes.",
+          "Add lentils, vegetable broth, and thyme. Bring to a boil, then reduce heat and simmer for 30-40 minutes, until lentils are tender.",
+          "Stir in tomato paste and season with salt and pepper.",
+          "Meanwhile, for the topping, boil potatoes until very tender. Drain and mash with almond milk, salt, and pepper until smooth.",
+          "Preheat oven to 400°F (200°C). Pour the lentil filling into a baking dish. Spread the mashed potato topping evenly over the filling.",
+          "Bake for 20-25 minutes, or until the topping is golden and the filling is bubbly."
+      ]
+  },
+  {
+      "title": "Quick & Easy Salmon with Asparagus",
+      "imageUrl": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=1974&auto=format&fit=crop",
+      "timeMinutes": 20,
+      "goals": ["Weight Loss", "Energy"],
+      "ingredientsTags": ["Seafood"],
+      "dietary": ["Dairy-Free", "Gluten-Free"],
+      "ingredients": [
+          "2 salmon fillets (6 oz each)",
+          "1 bunch asparagus, trimmed",
+          "2 tbsp olive oil, divided",
+          "1 lemon, sliced",
+          "2 cloves garlic, minced",
+          "Salt and freshly ground black pepper"
+      ],
+      "instructions": [
+          "Preheat oven to 400°F (200°C).",
+          "On a baking sheet, toss asparagus with 1 tbsp olive oil, salt, and pepper. Arrange in a single layer.",
+          "Pat salmon fillets dry. Rub with remaining olive oil, minced garlic, salt, and pepper.",
+          "Place salmon fillets on the baking sheet alongside the asparagus. Top each fillet with lemon slices.",
+          "Bake for 12-15 minutes, or until salmon is cooked through and flakes easily with a fork, and asparagus is tender-crisp.",
+          "Serve immediately."
+      ]
+  }
+];
 
-    console.log("\nPopulation script finished!");
+if (customRecipes.length === 0) {
+  console.log("No recipes to process. Exiting.");
+  return;
+}
+
+console.log(`\nStarting to populate ${customRecipes.length} recipes into your database...`);
+
+// 2. Process each recipe from your custom array one by one.
+for (const recipe of customRecipes) {
+  await addRecipeToYourDb(recipe);
+  // Add a small delay to avoid overwhelming your server
+  await new Promise(resolve => setTimeout(resolve, 300)); 
+}
+
+console.log("\nPopulation script finished!");
 }
 
 // 3. Call the main function to start the process.

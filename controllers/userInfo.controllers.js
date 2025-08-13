@@ -308,3 +308,67 @@ export const deleteNotifications =  async (req, res) => {
             .json({ status: 'error', message: err.message });
     }
 };
+
+export const getLeagueMembers = async (req, res) => {
+    const { token, UserID, limit = 10, includeSelf = true } = req.body;
+  
+    try {
+      // auth like your other endpoints
+      const authUser = jwt.verify(token, process.env.JWT_SECRET);
+      if (!authUser?.email) {
+        return res.send({ status: "error", data: "Unauthorized" });
+      }
+  
+      // make sure the caller exists
+      const me = await User.findById(UserID).select("_id").lean();
+      if (!me?._id) {
+        return res.send({ status: "error", data: "User not found" });
+      }
+  
+      // find the caller's league
+      const myGame = await GameSystem.findOne({ UserID: me._id })
+        .select("league points streak")
+        .lean();
+  
+      if (!myGame?.league) {
+        return res.send({ status: "error", data: "League not found" });
+      }
+  
+      // build query for same league
+      const filter = { league: myGame.league };
+      if (!includeSelf) filter.UserID = { $ne: me._id };
+  
+      // fetch members in same league, sorted by points (XP)
+      const rows = await GameSystem.find(filter)
+        .sort({ points: -1 })
+        .limit(Math.max(1, Math.min(Number(limit) || 10, 100)))
+        .populate("UserID", "username name profileImage") // from UserInfo
+        .select("UserID points streak league")
+        .lean();
+  
+      // shape: rank + isSelf + safe fields for the client
+      const list = rows.map((g, i) => {
+        const u = g.UserID || {};
+        const userId = String(u._id || g.UserID);
+        return {
+          userId,
+          username: u.username || u.name || "Unknown",
+          profileImage: u.profileImage || null,
+          points: g.points || 0,
+          streak: g.streak || 0,
+          league: g.league,
+          rank: i + 1,
+          isSelf: userId === String(me._id),
+        };
+      });
+  
+      return res.send({
+        status: "success",
+        data: list,
+        meta: { league: myGame.league, count: list.length }
+      });
+    } catch (error) {
+      console.error("getLeagueMembers error:", error);
+      return res.status(500).json({ status: "error", data: error.message });
+    }
+  };
