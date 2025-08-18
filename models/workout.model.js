@@ -33,7 +33,8 @@ const WorkoutExerciseSchema = new mongoose.Schema({
     sets: { type: Number, required: true },
     reps: { type: String, required: true },
     difficulty: { type: String }, // AI-assigned difficulty for this specific instance
-    videoUrl: { type: String, required: true } // The direct video URL from the library
+    videoUrl: { type: String, required: true } ,
+    recommendedWeight : {type: Number}
 }, { _id: false }); // _id is not needed for sub-documents
 
 // The schema for a single day's plan. It now directly contains arrays of exercises.

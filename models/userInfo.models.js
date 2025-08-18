@@ -23,6 +23,7 @@ const UserDetailSchema= new mongoose.Schema({
             request: { type: Boolean, default: null },
         }
     ],
+    savedMeals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Recipe', required: false }],
     lastWorkoutCompletionData: {type: Date, default: null} 
 }, {
     collection: "UserInfo",

@@ -11,6 +11,8 @@ import {Post, Notification, Photo} from "./models/post.models.js";
 //import {Settings} from "./UserDetails.js"; // Import models
 import { ExerciseLibrary, UserRoutine} from "./models/workout.model.js";
 import {Recipe} from "./models/recipe.models.js";
+import multer from "multer";
+import path from "path";
 
 import authRoutes from "./routes/auth.routes.js";
 import userData from "./routes/userInfo.routes.js";
@@ -44,6 +46,8 @@ app.get("/", (req, res) => {
     res.send({status:"started"})
 })
 //test 
+
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.post("/test/add-exercise", async (req, res) => {
     try {

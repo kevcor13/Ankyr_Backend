@@ -1,4 +1,5 @@
-import {Recipe} from "../models/recipe.models.js";
+import {Recipe, SavedMeals} from "../models/recipe.models.js";
+import { User } from "../models/userInfo.models.js";
 
 
 export const getFeaturedRecipes = async (req, res) => {
@@ -121,9 +122,16 @@ export const addFavoriteMeal = async (req, res) => {
       }
 
       // 3. Increment the favoriteCount for the specified meal
-       await Recipe.findByIdAndUpdate(userId,
-        { $addToSet: { mealId: mealId } 
+      const response =  await User.findByIdAndUpdate(userId,
+        { $addToSet: { savedMeals: mealId } 
       });
+
+      if(!response) {
+          return res.status(404).json({
+              status: "error",
+              message: `No user found with ID: ${userId}`
+          });
+      }
 
       console.log("Successfully added favorite to meal:", mealId);
 
@@ -135,3 +143,59 @@ export const addFavoriteMeal = async (req, res) => {
       });
   }
 }
+
+export const removeFavMeal = async (req, res) => {
+    const { userId, mealId } = req.body;
+    console.log("Meal ID to unfavorite:", mealId);
+    try{
+        await User.findByIdAndUpdate(userId, {
+            $pull: { savedMeals: mealId }
+        })
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error("Error removing favorite from meal:", error);
+        res.status(500).json({
+            status: "error",
+            message: "An internal server error occurred while unfavoriting the meal."
+        });
+    }
+}
+
+export const hasFavoriteMeal = async (req, res) => {
+    const {userId, mealId} = req.body;
+    console.log("Checking if meal is favorite for user:", userId, "Meal ID:", mealId);
+    try{
+        const exists = await User.exists({ _id: userId, savedMeals: mealId });
+        return res.json({ status: 'success', favorite: Boolean(exists) });
+    }catch(error){
+        console.error("Error checking favorite meal:", error);
+        res.status(500).json({
+            status: "error",
+            message: "An internal server error occurred while checking favorite meals."
+        });
+    }
+}
+
+export const getSavedMeals = async (req, res) => {
+    const { userId } = req.body;
+    try{
+        const user = await User.findById(userId).populate('savedMeals').lean();
+        if (!user) {
+            return res.status(404).json({
+                status: "error",
+                message: `No user found with ID: ${userId}`
+            });
+        }
+        return res.status(200).json({
+            status: "success",
+            message: "Successfully retrieved saved meals.",
+            data: user.savedMeals || []
+        });
+    } catch (error){
+        console.error("Error fetching saved meals:", error);
+        res.status(500).json({
+            status: "error",
+            message: "An internal server error occurred while fetching saved meals."
+        });
+    }
+}  

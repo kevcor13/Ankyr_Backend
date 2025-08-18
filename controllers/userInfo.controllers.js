@@ -229,41 +229,41 @@ export const getFollowing = async (req, res) => {
     }
 };
 
-export const updateProfileImage =  async (req, res) => {
-    const { userId, profileImage } = req.body;
-
+export const updateProfileImage = async (req, res) => {
     try {
-        if (!userId || !profileImage) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'User ID and profile image are required'
-            });
-        }
-
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            { profileImage: profileImage },
-        );
-        if (!updatedUser) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'User not found'
-            });
-        }
-        res.json({
-            status: 'success',
-            data: {
-                profileImage: profileImage
-            }
-        });
+      const userId = req.body.userId;
+      if (!userId) {
+        return res.status(400).json({ status: "error", message: "User ID is required" });
+      }
+  
+      // If file uploaded, build a public URL; otherwise fall back to profileImage in JSON.
+      let imageUrl = req.body.profileImage;
+      if (req.file) {
+        imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      }
+      if (!imageUrl) {
+        return res.status(400).json({ status: "error", message: "No image provided" });
+      }
+  
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { profileImage: imageUrl },
+        { new: true } // return updated doc
+      );
+      if (!updatedUser) {
+        return res.status(404).json({ status: "error", message: "User not found" });
+      }
+  
+      return res.json({
+        status: "success",
+        url: imageUrl,          // <-- your app reads this
+        updatedUser             // <-- or this
+      });
     } catch (error) {
-        console.error('Error updating profile image:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Failed to update profile image'
-        });
+      console.error("Error updating profile image:", error);
+      return res.status(500).json({ status: "error", message: "Failed to update profile image" });
     }
-};
+  };
 
 export const getNotifications = async (req, res) => {
     const { userId } = req.body;
@@ -353,7 +353,7 @@ export const getLeagueMembers = async (req, res) => {
         return {
           userId,
           username: u.username || u.name || "Unknown",
-          profileImage: u.profileImage || null,
+          profileImage: u.profileImage,
           points: g.points || 0,
           streak: g.streak || 0,
           league: g.league,

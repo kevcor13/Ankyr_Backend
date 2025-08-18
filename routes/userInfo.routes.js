@@ -4,6 +4,7 @@ import { createFitnessInfo, createGameSystem, createWorkout,
          getLeagueMembers, 
          getNotifications, getUserData, getWorkoutData, updateProfileImage 
         } from '../controllers/userInfo.controllers.js';
+import upload from "../middlewares/upload.js";
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.post('/getGameData', getGameData);
 router.post('/getWorkoutData', getWorkoutData);
 router.post('/getFollowers', getFollowers);
 router.post('/getFollowing', getFollowing);
-router.post('/updateProfile', updateProfileImage);
+router.post("/updateProfile", upload.single("image"), updateProfileImage);
 router.post('/getNotifications', getNotifications);
 router.post('/deleteNotifications', deleteNotifications);
 router.post('/getLeagueMembers', getLeagueMembers);
