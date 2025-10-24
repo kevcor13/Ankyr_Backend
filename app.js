@@ -2,16 +2,15 @@ import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-// import OpenAI from "openai"; // No longer needed for Gemini API
+ import OpenAI from "openai";
 import bodyParser from "body-parser";
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
+import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai"; // Correct import for Gemini
 import cors from "cors";
 import { FitnessInfo, GameSystem, User, Codes} from "./models/userInfo.models.js";
 import {Post, Notification, Photo} from "./models/post.models.js";
 //import {Settings} from "./UserDetails.js"; // Import models
 import { ExerciseLibrary, UserRoutine} from "./models/workout.model.js";
 import {Recipe} from "./models/recipe.models.js";
-import multer from "multer";
 import path from "path";
 
 import authRoutes from "./routes/auth.routes.js";
@@ -19,6 +18,7 @@ import userData from "./routes/userInfo.routes.js";
 import ai from "./routes/ai.routes.js";
 import update from "./routes/update.routes.js";
 import recipe from "./routes/recipe.routes.js";
+import media from "./routes/media.routes.js";
 
 
 const app = express();
@@ -172,6 +172,8 @@ app.use('/api/user', userData);
 app.use('/api/GenAI', ai);
 app.use('/api/update', update);
 app.use('/api/meals', recipe );
+app.use('/api/media', media );
+
 app.post("/save-workout", async (req, res) => {
     const {rawResponse} = req.body;
     console.log(rawResponse);
@@ -772,19 +774,17 @@ app.post("/createPost", async (req, res) => {
     }
 });
 
-// Follow a user
+// DONE
 app.post('/follow', async (req, res) => {
-    const { userId, targetId } = req.body; // userId = current user, targetId = user to follow
+    const { userId, targetId } = req.body;
 
     try {
-        // Add follow request to current user's following array
         await User.findByIdAndUpdate(userId, {
-            $addToSet: { following: { user: targetId} }
+            $addToSet: { friends: { user: targetId} }
         });
 
-        // Add follow request to target user's followers array
         await User.findByIdAndUpdate(targetId, {
-            $addToSet: { followers: { user: userId} }
+            $addToSet: { friends: { user: userId} }
         });
 
         res.json({ status: "success", data: "Follow request sent", request: null });
@@ -818,14 +818,9 @@ app.post('/response', async (req, res) => {
         await Promise.all([
             User.updateOne(
                 { _id: targetId },
-                { $set: { "following.$[f].request": accept } },
+                { $set: { "friends.$[f].request": accept } },
                 { arrayFilters: [{ "f.user": userId }] }
             ),
-            User.updateOne(
-                { _id: userId },
-                { $set: { "followers.$[f].request": accept } },
-                { arrayFilters: [{ "f.user": targetId }] }
-            )
         ]);
 
         return res.json({
