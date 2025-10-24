@@ -10,19 +10,12 @@ const UserDetailSchema= new mongoose.Schema({
     askedThemeQuestion: {type: Boolean, default: false},
     defaultTheme:{type: Boolean, deafult: true},
     profileImage: String,
-    // Each follower/following entry now includes a 'request' status
-    followers: [
+    friends: [
         {
-            user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
-            request: { type: Boolean, default: null },
-        }
-    ],
-    following: [
-        {
-            user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
-            request: { type: Boolean, default: null },
-        }
-    ],
+          user: { type: mongoose.Schema.Types.ObjectId, ref: "UserInfo" },
+          request: { type: Boolean, default: null },
+        },
+      ],
     savedMeals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Recipe', required: false }],
     lastWorkoutCompletionData: {type: Date, default: null} 
 }, {
